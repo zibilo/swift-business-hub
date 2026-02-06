@@ -67,7 +67,7 @@ export type Database = {
           scan_result: string | null
           status: string | null
           storage_path: string
-          uploaded_by: string
+          uploaded_by: string | null
         }
         Insert: {
           company_id: string
@@ -79,7 +79,7 @@ export type Database = {
           scan_result?: string | null
           status?: string | null
           storage_path: string
-          uploaded_by: string
+          uploaded_by?: string | null
         }
         Update: {
           company_id?: string
@@ -91,7 +91,7 @@ export type Database = {
           scan_result?: string | null
           status?: string | null
           storage_path?: string
-          uploaded_by?: string
+          uploaded_by?: string | null
         }
         Relationships: [
           {
