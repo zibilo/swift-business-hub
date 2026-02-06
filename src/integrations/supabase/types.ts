@@ -159,6 +159,199 @@ export type Database = {
           },
         ]
       }
+      employee_references: {
+        Row: {
+          cco: string
+          code_caisse: string
+          company_id: string
+          created_at: string
+          first_seen_file_id: string | null
+          id: string
+          matricule: string
+          nom_prenom: string
+          updated_at: string
+        }
+        Insert: {
+          cco: string
+          code_caisse: string
+          company_id: string
+          created_at?: string
+          first_seen_file_id?: string | null
+          id?: string
+          matricule: string
+          nom_prenom: string
+          updated_at?: string
+        }
+        Update: {
+          cco?: string
+          code_caisse?: string
+          company_id?: string
+          created_at?: string
+          first_seen_file_id?: string | null
+          id?: string
+          matricule?: string
+          nom_prenom?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_references_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_references_first_seen_file_id_fkey"
+            columns: ["first_seen_file_id"]
+            isOneToOne: false
+            referencedRelation: "file_imports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      file_import_rows: {
+        Row: {
+          cco: string
+          code_caisse: string
+          created_at: string
+          file_import_id: string
+          id: string
+          matricule: string
+          montant: number
+          nom_prenom: string
+          periode: number
+          row_number: number
+        }
+        Insert: {
+          cco: string
+          code_caisse: string
+          created_at?: string
+          file_import_id: string
+          id?: string
+          matricule: string
+          montant: number
+          nom_prenom: string
+          periode: number
+          row_number: number
+        }
+        Update: {
+          cco?: string
+          code_caisse?: string
+          created_at?: string
+          file_import_id?: string
+          id?: string
+          matricule?: string
+          montant?: number
+          nom_prenom?: string
+          periode?: number
+          row_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_import_rows_file_import_id_fkey"
+            columns: ["file_import_id"]
+            isOneToOne: false
+            referencedRelation: "file_imports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      file_imports: {
+        Row: {
+          company_id: string
+          created_at: string
+          error_message: string | null
+          filename: string
+          id: string
+          period: number
+          row_count: number | null
+          selected_period: number
+          status: string
+          storage_path: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          error_message?: string | null
+          filename: string
+          id?: string
+          period: number
+          row_count?: number | null
+          selected_period: number
+          status?: string
+          storage_path: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          error_message?: string | null
+          filename?: string
+          id?: string
+          period?: number
+          row_count?: number | null
+          selected_period?: number
+          status?: string
+          storage_path?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_imports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_imports_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      import_discrepancies: {
+        Row: {
+          actual_value: string
+          created_at: string
+          expected_value: string
+          field_name: string
+          file_import_id: string
+          id: string
+          matricule: string
+        }
+        Insert: {
+          actual_value: string
+          created_at?: string
+          expected_value: string
+          field_name: string
+          file_import_id: string
+          id?: string
+          matricule: string
+        }
+        Update: {
+          actual_value?: string
+          created_at?: string
+          expected_value?: string
+          field_name?: string
+          file_import_id?: string
+          id?: string
+          matricule?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_discrepancies_file_import_id_fkey"
+            columns: ["file_import_id"]
+            isOneToOne: false
+            referencedRelation: "file_imports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
