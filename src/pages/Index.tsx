@@ -1,9 +1,10 @@
- import { useAuth } from '@/contexts/AuthContext';
- import { Button } from '@/components/ui/button';
- import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
- import { Building2, LogOut, User, FileSpreadsheet, MessageSquare } from 'lucide-react';
- 
- const Index = () => {
+import { useAuth } from '@/contexts/AuthContext';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { CreateCompanyDialog } from '@/components/CreateCompanyDialog';
+import { Building2, LogOut, User, FileSpreadsheet, MessageSquare } from 'lucide-react';
+
+const Index = () => {
    const { user, profile, companyUser, signOut } = useAuth();
  
    return (
@@ -41,12 +42,14 @@
                  Créez votre entreprise ou demandez une invitation.
                </CardDescription>
              </CardHeader>
-             <CardContent>
-               <Button className="w-full">
-                 <Building2 className="h-4 w-4 mr-2" />
-                 Créer mon entreprise
-               </Button>
-             </CardContent>
+            <CardContent>
+                <CreateCompanyDialog>
+                  <Button className="w-full">
+                    <Building2 className="h-4 w-4 mr-2" />
+                    Créer mon entreprise
+                  </Button>
+                </CreateCompanyDialog>
+              </CardContent>
            </Card>
          ) : (
            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

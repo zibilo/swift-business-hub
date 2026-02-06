@@ -239,6 +239,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_company_with_admin: {
+        Args: { company_name: string; company_siret?: string }
+        Returns: string
+      }
       get_user_company_id: { Args: { user_uuid: string }; Returns: string }
       is_company_admin: { Args: { company_uuid: string }; Returns: boolean }
       is_company_member: { Args: { company_uuid: string }; Returns: boolean }
