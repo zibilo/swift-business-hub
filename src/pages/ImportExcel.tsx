@@ -20,8 +20,7 @@ interface ParsedRow {
   matricule: string;
   nom: string;
   prenom: string;
-  code: string;
-  caisse: string;
+  code_caisse: string;
   cco: string;
   montant: number;
   row_number: number;
@@ -51,7 +50,7 @@ const ImportExcel = () => {
 
   // ÉTAPE 1 : Vérifier la structure du fichier
   const validateStructure = (worksheet: XLSX.WorkSheet): { valid: boolean; headers?: string[] } => {
-    const expectedColumns = ['PÉRIODE', 'MATRICULE', 'NOM', 'PRENOM', 'CODE', 'CAISSE', 'CCO', 'MONTANT'];
+    const expectedColumns = ['PÉRIODE', 'MATRICULE', 'NOM', 'PRENOM', 'CODE CAISSE', 'CCO', 'MONTANT'];
     const data = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1 });
     
     if (data.length < 2) {
@@ -100,8 +99,7 @@ const ImportExcel = () => {
     const matriculeIndex = headers.indexOf('MATRICULE');
     const nomIndex = headers.indexOf('NOM');
     const prenomIndex = headers.indexOf('PRENOM');
-    const codeIndex = headers.indexOf('CODE');
-    const caisseIndex = headers.indexOf('CAISSE');
+    const codeCaisseIndex = headers.indexOf('CODE CAISSE');
     const ccoIndex = headers.indexOf('CCO');
     const montantIndex = headers.indexOf('MONTANT');
 
@@ -117,8 +115,7 @@ const ImportExcel = () => {
       const matricule = String(row[matriculeIndex] ?? '').trim();
       const nom = String(row[nomIndex] ?? '').trim();
       const prenom = String(row[prenomIndex] ?? '').trim();
-      const code = String(row[codeIndex] ?? '').trim();
-      const caisse = String(row[caisseIndex] ?? '').trim();
+      const codeCaisse = String(row[codeCaisseIndex] ?? '').trim();
       const cco = String(row[ccoIndex] ?? '').trim();
       const montant = row[montantIndex];
 
@@ -134,15 +131,9 @@ const ImportExcel = () => {
         hasError = true;
       }
 
-      // Valider CODE (exactement 3 chiffres)
-      if (!/^\d{3}$/.test(code)) {
-        formatErrors.push(`Ligne ${rowNum} : CODE invalide (3 chiffres requis)`);
-        hasError = true;
-      }
-
-      // Valider CAISSE (exactement 3 chiffres)
-      if (!/^\d{3}$/.test(caisse)) {
-        formatErrors.push(`Ligne ${rowNum} : CAISSE invalide (3 chiffres requis)`);
+      // Valider CODE CAISSE (exactement 3 chiffres)
+      if (!/^\d{3}$/.test(codeCaisse)) {
+        formatErrors.push(`Ligne ${rowNum} : CODE CAISSE invalide (3 chiffres requis)`);
         hasError = true;
       }
 
@@ -152,10 +143,10 @@ const ImportExcel = () => {
         hasError = true;
       }
 
-      // Valider MONTANT (numérique uniquement)
+      // Valider MONTANT (numérique uniquement, accepte les grands nombres)
       const montantNum = Number(montant);
-      if (isNaN(montantNum)) {
-        formatErrors.push(`Ligne ${rowNum} : MONTANT invalide (numérique requis)`);
+      if (isNaN(montantNum) || montantNum < 0) {
+        formatErrors.push(`Ligne ${rowNum} : MONTANT invalide (nombre positif requis, ex: 10987777)`);
         hasError = true;
       }
 
@@ -175,8 +166,7 @@ const ImportExcel = () => {
           matricule,
           nom,
           prenom,
-          code,
-          caisse,
+          code_caisse: codeCaisse,
           cco,
           montant: montantNum,
           row_number: rowNum,
@@ -288,9 +278,7 @@ const ImportExcel = () => {
       rows.map(r => createSignature({
         matricule: r.matricule,
         cco: r.cco,
-        code_caisse: r.code,
-
-        
+        code_caisse: r.code_caisse,
         montant: r.montant,
       }))
     );
@@ -300,7 +288,7 @@ const ImportExcel = () => {
       rows.every(r => previousSignatures.has(createSignature({
         matricule: r.matricule,
         cco: r.cco,
-        code_caisse: r.code,
+        code_caisse: r.code_caisse,
         montant: r.montant,
       })));
 
@@ -379,6 +367,9 @@ const ImportExcel = () => {
       }
       
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+
+
+    
       const data = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1 });
 
       // ÉTAPE 1 : Vérifier la structure
@@ -452,7 +443,7 @@ const ImportExcel = () => {
         periode: row.periode,
         matricule: row.matricule,
         nom_prenom: `${row.nom} ${row.prenom}`,
-        code_caisse: row.code,
+        code_caisse: row.code_caisse,
         cco: row.cco,
         montant: row.montant,
         row_number: row.row_number,
@@ -479,7 +470,7 @@ const ImportExcel = () => {
             company_id: companyUser.company_id,
             matricule: e.matricule,
             nom_prenom: `${e.nom} ${e.prenom}`,
-            code_caisse: e.code,
+            code_caisse: e.code_caisse,
             cco: e.cco,
             first_seen_file_id: importData.id,
           }))
@@ -515,9 +506,9 @@ const ImportExcel = () => {
 
   const downloadTemplate = () => {
     const template = [
-      ['PÉRIODE', 'MATRICULE', 'NOM', 'PRENOM', 'CODE', 'CAISSE', 'CCO', 'MONTANT'],
-      [202501, '5119788', 'DUPONT', 'Jean', '333', '249', '023467', 1500.50],
-      [202501, '4523891', 'MARTIN', 'Marie', '333', '249', '045678', 2300.75],
+      ['PÉRIODE', 'MATRICULE', 'NOM', 'PRENOM', 'CODE CAISSE', 'CCO', 'MONTANT'],
+      [202501, '5119788', 'DUPONT', 'Jean', '249', '023467', 10987777],
+      [202501, '4523891', 'MARTIN', 'Marie', '249', '045678', 8500000],
     ];
     const ws = XLSX.utils.aoa_to_sheet(template);
     const wb = XLSX.utils.book_new();
@@ -667,10 +658,9 @@ const ImportExcel = () => {
                 <p><strong>MATRICULE</strong> - 7 chiffres (ex: 5119788)</p>
                 <p><strong>NOM</strong> - Nom du salarié</p>
                 <p><strong>PRENOM</strong> - Prénom du salarié</p>
-                <p><strong>CODE</strong> - 3 chiffres (ex: 333)</p>
-                <p><strong>CAISSE</strong> - 3 chiffres (ex: 249)</p>
+                <p><strong>CODE CAISSE</strong> - 3 chiffres (ex: 249)</p>
                 <p><strong>CCO</strong> - 6 chiffres (ex: 023467)</p>
-                <p><strong>MONTANT</strong> - Montant net à verser</p>
+                <p><strong>MONTANT</strong> - Nombre entier (ex: 10987777)</p>
               </div>
               <div className="pt-2 border-t">
                 <p className="text-xs text-muted-foreground mb-2">
@@ -690,4 +680,4 @@ const ImportExcel = () => {
 };
 
 export default ImportExcel;
-        
+          
