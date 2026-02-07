@@ -158,6 +158,19 @@ const ImportExcel = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
+      // Vérifier l'extension du fichier
+      const validExtensions = ['.xlsx', '.xls', '.xlsm', '.xlsb', '.csv', '.ods'];
+      const fileExtension = selectedFile.name.toLowerCase().substring(selectedFile.name.lastIndexOf('.'));
+      
+      if (!validExtensions.includes(fileExtension)) {
+        toast({
+          title: 'Format non supporté',
+          description: 'Veuillez sélectionner un fichier Excel (.xlsx, .xls, .xlsm, .xlsb) ou CSV',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       setFile(selectedFile);
       setValidationErrors([]);
       setIsSuccess(false);
@@ -181,7 +194,25 @@ const ImportExcel = () => {
     try {
       // Read and parse Excel file
       const arrayBuffer = await file.arrayBuffer();
-      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      
+      // Déterminer les options de lecture selon le type de fichier
+      const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+      let workbook: XLSX.WorkBook;
+      
+      if (fileExtension === '.csv') {
+        // Pour les fichiers CSV, on les traite comme du texte
+        const text = new TextDecoder().decode(arrayBuffer);
+        workbook = XLSX.read(text, { type: 'string' });
+      } else {
+        // Pour tous les formats Excel
+        workbook = XLSX.read(arrayBuffer, { 
+          type: 'array',
+          cellDates: true,
+          cellNF: false,
+          cellText: false
+        });
+      }
+      
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
 
       // Step 1: Validate structure
@@ -322,7 +353,7 @@ const ImportExcel = () => {
               Nouveau fichier
             </CardTitle>
             <CardDescription>
-              Sélectionnez la période et téléversez votre fichier Excel
+              Sélectionnez la période et téléversez votre fichier Excel ou CSV
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -343,11 +374,11 @@ const ImportExcel = () => {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Fichier Excel</label>
+              <label className="text-sm font-medium">Fichier Excel ou CSV</label>
               <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
                 <input
                   type="file"
-                  accept=".xlsx,.xls"
+                  accept=".xlsx,.xls,.xlsm,.xlsb,.csv,.ods"
                   onChange={handleFileChange}
                   className="hidden"
                   id="file-upload"
@@ -357,9 +388,14 @@ const ImportExcel = () => {
                   {file ? (
                     <p className="text-sm font-medium">{file.name}</p>
                   ) : (
-                    <p className="text-sm text-muted-foreground">
-                      Cliquez pour sélectionner un fichier .xlsx
-                    </p>
+                    <>
+                      <p className="text-sm text-muted-foreground">
+                        Cliquez pour sélectionner un fichier
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Formats acceptés: .xlsx, .xls, .xlsm, .xlsb, .csv, .ods
+                      </p>
+                    </>
                   )}
                 </label>
               </div>
@@ -430,6 +466,11 @@ const ImportExcel = () => {
                 <p><strong>CODE CAISSE</strong> - Code agence (3 caractères)</p>
                 <p><strong>CCO</strong> - Numéro de compte court</p>
                 <p><strong>MONTANT</strong> - Montant net à verser</p>
+              </div>
+              <div className="pt-2 border-t">
+                <p className="text-xs text-muted-foreground mb-2">
+                  Formats supportés: Excel (.xlsx, .xls, .xlsm, .xlsb), CSV, OpenDocument (.ods)
+                </p>
               </div>
               <Button variant="outline" className="w-full" onClick={downloadTemplate}>
                 <Download className="h-4 w-4 mr-2" />
