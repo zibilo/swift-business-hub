@@ -5,12 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
-import * as XLSX from 'xlsx';
-import { Loader2, AlertTriangle, CheckCircle, Upload, FileSpreadsheet, Download, RefreshCw, Info } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { FilePicker } from 'capacitor-file-picker';
+import * as XLSX from 'xlsx';
 import { BrandIcon } from '@/components/BrandIcons';
-import { useNativePermissions } from '@/hooks/useNativePermissions';
+import { Loader2 } from 'lucide-react'; // Keep Loader2 for spinner
 
 interface ValidationError {
   type: 'structure' | 'format' | 'duplicate_internal' | 'duplicate_file' | 'period' | 'update_detected' | 'upload';
@@ -32,18 +30,18 @@ interface ParsedRow {
 const ImportExcel = () => {
   const { companyUser, user } = useAuth();
   const { toast } = useToast();
-  const { checkAndRequestStoragePermissions } = useNativePermissions();
   const [selectedPeriod, setSelectedPeriod] = useState<string>('');
-  const [file, setFile] = useState<{ name: string, data: ArrayBuffer } | null>(null);
+  const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [isSuccess, setIsSuccess] = useState(false);
   const [pendingUpdate, setPendingUpdate] = useState<{
     rows: ParsedRow[];
-    historyCheck: { valid: boolean; isUpdate: boolean; details?: string[] };
+    historyCheck: { valid: boolean; isUpdate: boolean };
   } | null>(null);
 
-  const VALID_EXTENSIONS = ['.xlsx', '.xls', '.csv'];
+  const MAX_FILE_SIZE = 10 * 1024 * 1024;
+  const VALID_EXTENSIONS = ['.xlsx', '.xls', '.xlsm', '.xlsb', '.csv', '.ods'];
 
   const periodOptions = Array.from({ length: 12 }, (_, i) => {
     const date = new Date();
@@ -53,298 +51,136 @@ const ImportExcel = () => {
     return { value: `${year}${month}`, label: `${month}/${year}` };
   });
 
-  const handlePickFile = async () => {
-    try {
-      const isGranted = await checkAndRequestStoragePermissions();
-      if (!isGranted) {
-        toast({ title: "Permission refusée", description: "L'accès au stockage est nécessaire.", variant: "destructive" });
-        return;
-      }
-
-      const result = await FilePicker.pickFiles({
-        types: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', 'text/csv'],
-        multiple: false,
-        readData: true
-      });
-
-      if (result.files && result.files.length > 0) {
-        const pickedFile = result.files[0];
-        if (pickedFile.data) {
-          const binaryString = atob(pickedFile.data);
-          const bytes = new Uint8Array(binaryString.length);
-          for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-          }
-          setFile({ name: pickedFile.name, data: bytes.buffer });
-          setValidationErrors([]);
-          setIsSuccess(false);
-          setPendingUpdate(null);
-        }
-      }
-    } catch (error) {
-      console.error('File picking error:', error);
-      toast({ title: "Erreur", description: "Impossible de sélectionner le fichier.", variant: "destructive" });
-    }
-  };
-
-  const validateStructure = (workbook: XLSX.WorkBook) => {
-    const firstSheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[firstSheetName];
-    const headers = XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0] as string[];
-
-    const required = ['PÉRIODE', 'MATRICULE', 'NOM', 'PRENOM', 'CODE CAISSE', 'CCO', 'MONTANT'];
-    const missing = required.filter(h => !headers?.includes(h));
-
-    if (missing.length > 0) {
-      setValidationErrors([{
-        type: 'structure',
-        message: 'Colonnes manquantes',
-        details: missing
-      }]);
+  const validateStructure = (worksheet: XLSX.WorkSheet) => {
+    const expectedColumns = ['PÉRIODE', 'MATRICULE', 'NOM', 'PRENOM', 'CODE CAISSE', 'CCO', 'MONTANT'];
+    const data = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1 });
+    if (data.length < 2) {
+      setValidationErrors([{ type: 'structure', message: 'Le fichier est vide' }]);
       return { valid: false };
     }
+    const headers = (data[0] as unknown[]).map(h => String(h ?? '').toUpperCase().trim());
+    const missing = expectedColumns.filter(col => !headers.includes(col));
+    if (missing.length > 0) {
+      setValidationErrors([{ type: 'structure', message: 'Colonnes manquantes', details: missing }]);
+      return { valid: false };
+    }
+    return { valid: true, headers };
+  };
 
-    const rows = XLSX.utils.sheet_to_json(worksheet) as any[];
+  const validateFieldFormats = (data: unknown[][], headers: string[]) => {
+    const pIdx = headers.indexOf('PÉRIODE');
+    const mIdx = headers.indexOf('MATRICULE');
+    const nIdx = headers.indexOf('NOM');
+    const prIdx = headers.indexOf('PRENOM');
+    const ccIdx = headers.indexOf('CODE CAISSE');
+    const ccoIdx = headers.indexOf('CCO');
+    const monIdx = headers.indexOf('MONTANT');
+
+    const rows: ParsedRow[] = [];
+    const errors: string[] = [];
+
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i] as unknown[];
+      if (!row || row.length === 0 || row.every(c => !c)) continue;
+
+      const p = String(row[pIdx] ?? '').trim();
+      const m = String(row[mIdx] ?? '').trim();
+      const n = String(row[nIdx] ?? '').trim();
+      const pr = String(row[prIdx] ?? '').trim();
+      const cc = String(row[ccIdx] ?? '').trim();
+      const cco = String(row[ccoIdx] ?? '').trim();
+      const mon = Number(row[monIdx] ?? 0);
+
+      if (!/^\d{6}$/.test(p)) errors.push(`Ligne ${i+1}: PÉRIODE invalide`);
+      if (!/^\d{7}$/.test(m)) errors.push(`Ligne ${i+1}: MATRICULE invalide`);
+      if (!n || !pr) errors.push(`Ligne ${i+1}: NOM/PRENOM manquant`);
+
+      rows.push({
+        periode: parseInt(p), matricule: m, nom: n.toUpperCase(), prenom: pr.toUpperCase(),
+        code_caisse: cc, cco: cco, montant: mon, row_number: i + 1
+      });
+    }
+
+    if (errors.length > 0) {
+      setValidationErrors([{ type: 'format', message: 'Erreurs de format', details: errors.slice(0, 5) }]);
+      return { valid: false };
+    }
     return { valid: true, rows };
   };
 
-  const validateFormats = (rows: any[]) => {
-    const errors: string[] = [];
-    const parsedRows: ParsedRow[] = [];
-
-    rows.forEach((row, index) => {
-      const rowNum = index + 2;
-      if (!/^\d{6}$/.test(String(row['PÉRIODE']))) errors.push(`Ligne ${rowNum}: PÉRIODE invalide (YYYYMM)`);
-      if (!/^\d+$/.test(String(row['MATRICULE']))) errors.push(`Ligne ${rowNum}: MATRICULE invalide`);
-      if (!row['NOM']) errors.push(`Ligne ${rowNum}: NOM manquant`);
-      if (!row['PRENOM']) errors.push(`Ligne ${rowNum}: PRENOM manquant`);
-      if (!/^\d+$/.test(String(row['CODE CAISSE']))) errors.push(`Ligne ${rowNum}: CODE CAISSE invalide`);
-      if (!/^\d+$/.test(String(row['CCO']))) errors.push(`Ligne ${rowNum}: CCO invalide`);
-      if (isNaN(Number(row['MONTANT']))) errors.push(`Ligne ${rowNum}: MONTANT invalide`);
-
-      parsedRows.push({
-        periode: parseInt(row['PÉRIODE']),
-        matricule: String(row['MATRICULE']),
-        nom: String(row['NOM']),
-        prenom: String(row['PRENOM']),
-        code_caisse: String(row['CODE CAISSE']),
-        cco: String(row['CCO']),
-        montant: Number(row['MONTANT']),
-        row_number: rowNum
-      });
-    });
-
-    if (errors.length > 0) {
-      setValidationErrors([{
-        type: 'format',
-        message: 'Erreurs de format',
-        details: errors.slice(0, 10)
-      }]);
-      return { valid: false };
-    }
-
-    return { valid: true, rows: parsedRows };
-  };
-
-  const checkInternalDuplicates = (rows: ParsedRow[]) => {
-    const seen = new Set<string>();
-    const duplicates: string[] = [];
-
-    rows.forEach(row => {
-      const key = `${row.periode}-${row.matricule}`;
-      if (seen.has(key)) {
-        duplicates.push(`Doublon détecté: Matricule ${row.matricule} pour la période ${row.periode}`);
-      }
-      seen.add(key);
-    });
-
-    if (duplicates.length > 0) {
-      setValidationErrors([{
-        type: 'duplicate_internal',
-        message: 'Doublons dans le fichier',
-        details: duplicates.slice(0, 5)
-      }]);
-      return false;
-    }
-    return true;
-  };
-
   const checkHistoricalDuplicates = async (rows: ParsedRow[], period: number) => {
-    // Note: We check file_import_rows for history because employee_references might be simplified
-    const { data: existingData, error } = await supabase
-      .from('file_import_rows')
-      .select('matricule, nom_prenom, code_caisse, cco, montant')
-      .eq('periode', period)
-      .in('matricule', rows.map(r => r.matricule));
+    if (!companyUser?.company_id) return { valid: false, isUpdate: false };
+    const { data: lastImport } = await supabase.from('file_imports')
+      .select('id, filename').eq('company_id', companyUser.company_id).eq('period', period)
+      .in('status', ['pending', 'validated']).order('created_at', { ascending: false }).limit(1).single();
 
-    if (error) throw error;
-
-    if (existingData && existingData.length > 0) {
-      const updates: string[] = [];
-      rows.forEach(row => {
-        const existing = existingData.find(e => e.matricule === row.matricule);
-        if (existing) {
-          const fullName = `${row.nom} ${row.prenom}`;
-          if (existing.nom_prenom !== fullName ||
-              existing.code_caisse !== row.code_caisse || existing.cco !== row.cco ||
-              existing.montant !== row.montant) {
-            updates.push(`Mise à jour pour ${fullName} (Matricule ${row.matricule})`);
-          }
-        }
-      });
-
-      if (updates.length > 0) {
-        return {
-          valid: true,
-          isUpdate: true,
-          details: [
-            `📊 Statistiques de l'import :`,
-            `✅ ${rows.length - updates.length} nouveaux enregistrements ou identiques`,
-            `🔄 ${updates.length} mises à jour détectées`,
-            ...updates.slice(0, 5)
-          ]
-        };
-      }
-    }
-
-    return { valid: true, isUpdate: false };
+    if (!lastImport) return { valid: true, isUpdate: false };
+    return { valid: true, isUpdate: true };
   };
 
   const performImport = async (rows: ParsedRow[]) => {
-    if (!file || !user || !companyUser) return;
+    if (!file || !companyUser || !user) return;
     setIsUploading(true);
-
     try {
-      const periodInt = parseInt(selectedPeriod);
-      // 1. Upload to storage
-      const storagePath = `${companyUser.company_id}/${selectedPeriod}/${Date.now()}_${file.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from('company_imports')
-        .upload(storagePath, file.data);
+      const path = `${companyUser.company_id}/${Date.now()}_${file.name}`;
+      await supabase.storage.from('excel-imports').upload(path, file);
 
-      if (uploadError) throw uploadError;
+      const { data: imp } = await supabase.from('file_imports').insert({
+        company_id: companyUser.company_id, filename: file.name, storage_path: path,
+        period: parseInt(selectedPeriod), selected_period: parseInt(selectedPeriod),
+        status: 'validated', uploaded_by: user.id, row_count: rows.length
+      }).select().single();
 
-      // 2. Create import record
-      const { data: importRecord, error: importError } = await supabase
-        .from('file_imports')
-        .insert({
-          company_id: companyUser.company_id,
-          uploaded_by: user.id,
-          filename: file.name,
-          storage_path: storagePath,
-          period: periodInt,
-          selected_period: periodInt,
-          row_count: rows.length,
-          status: 'completed'
-        })
-        .select()
-        .single();
-
-      if (importError) throw importError;
-
-      // 3. Insert rows
-      const importRows = rows.map(r => ({
-        file_import_id: importRecord.id,
-        periode: r.periode,
-        matricule: r.matricule,
-        nom_prenom: `${r.nom} ${r.prenom}`,
-        code_caisse: r.code_caisse,
-        cco: r.cco,
-        montant: r.montant,
-        row_number: r.row_number
-      }));
-
-      const { error: rowsError } = await supabase
-        .from('file_import_rows')
-        .insert(importRows);
-
-      if (rowsError) throw rowsError;
-
-      // 4. Update/Insert in references (upsert)
-      const references = rows.map(r => ({
-        company_id: companyUser.company_id,
-        matricule: r.matricule,
-        nom_prenom: `${r.nom} ${r.prenom}`,
-        code_caisse: r.code_caisse,
-        cco: r.cco,
-        first_seen_file_id: importRecord.id
-      }));
-
-      // In real scenario, we might want to be careful with upsert on employee_references
-      // but for this task, we follow the "No deletion" principle.
-      const { error: refError } = await supabase
-        .from('employee_references')
-        .upsert(references, { onConflict: 'company_id,matricule' });
-
-      if (refError) throw refError;
+      await supabase.from('file_import_rows').insert(rows.map(r => ({
+        file_import_id: imp.id, periode: r.periode, matricule: r.matricule,
+        nom_prenom: `${r.nom} ${r.prenom}`, code_caisse: r.code_caisse,
+        cco: r.cco, montant: r.montant, row_number: r.row_number
+      })));
 
       setIsSuccess(true);
       setFile(null);
       setPendingUpdate(null);
-      setValidationErrors([]);
-      toast({ title: "Import réussi", description: `${rows.length} lignes importées.` });
-
-    } catch (error: any) {
-      toast({ title: "Erreur d'import", description: error.message, variant: "destructive" });
+      toast({ title: '✅ Import réussi', description: `${rows.length} lignes traitées.` });
+    } catch (e) {
+      toast({ title: 'Erreur', description: 'Échec de l\'import', variant: 'destructive' });
     } finally {
       setIsUploading(false);
     }
   };
 
-  const handleUpload = async () => {
-    if (!file || !selectedPeriod || !companyUser) return;
+  const handleUpload = useCallback(async () => {
+    if (!file || !selectedPeriod) return;
     setIsUploading(true);
-    setValidationErrors([]);
-
     try {
-      const workbook = XLSX.read(file.data, { type: 'array' });
+      const buffer = await file.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1 });
 
-      const struct = validateStructure(workbook);
-      if (!struct.valid || !struct.rows) return;
+      const struct = validateStructure(ws);
+      if (!struct.valid || !struct.headers) return;
 
-      const formats = validateFormats(struct.rows);
+      const formats = validateFieldFormats(data, struct.headers);
       if (!formats.valid || !formats.rows) return;
 
-      if (!checkInternalDuplicates(formats.rows)) return;
-
-      const periodInt = parseInt(selectedPeriod);
-      const rowsWithPeriod = formats.rows.filter(r => r.periode === periodInt);
-
-      if (rowsWithPeriod.length === 0) {
-        setValidationErrors([{
-          type: 'period',
-          message: 'Aucune donnée pour la période sélectionnée',
-          details: [`Le fichier contient des données pour d'autres périodes.`]
-        }]);
-        return;
-      }
-
-      const historyCheck = await checkHistoricalDuplicates(rowsWithPeriod, periodInt);
-
-      if (historyCheck.isUpdate) {
-        setPendingUpdate({ rows: rowsWithPeriod, historyCheck });
-        setValidationErrors([{
-          type: 'update_detected',
-          message: 'Données existantes détectées',
-          details: historyCheck.details
-        }]);
+      const history = await checkHistoricalDuplicates(formats.rows, parseInt(selectedPeriod));
+      if (history.isUpdate) {
+        setPendingUpdate({ rows: formats.rows, historyCheck: history });
+        setValidationErrors([{ type: 'update_detected', message: 'Mise à jour détectée' }]);
       } else {
-        await performImport(rowsWithPeriod);
+        await performImport(formats.rows);
       }
-
-    } catch (error: any) {
-      toast({ title: "Erreur", description: error.message, variant: "destructive" });
     } finally {
       setIsUploading(false);
     }
-  };
+  }, [file, selectedPeriod, companyUser, user]);
 
   return (
     <div className="p-4 md:p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-[#004080]">Import Excel</h1>
-          <p className="text-muted-foreground text-sm">Téléversez vos fichiers de données de paie</p>
+          <p className="text-muted-foreground text-sm">Gestion des flux de données</p>
         </div>
         <BrandIcon name="import" size={32} color="#004080" />
       </div>
@@ -353,96 +189,47 @@ const ImportExcel = () => {
         <Card className="border-t-4 border-t-[#004080]">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Upload className="h-5 w-5" />
+              <BrandIcon name="import" className="h-5 w-5" />
               Nouveau fichier
             </CardTitle>
-            <CardDescription>Sélectionnez la période et le fichier</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Période de reporting</label>
-              <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choisir une période" />
-                </SelectTrigger>
-                <SelectContent>
-                  {periodOptions.map(opt => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+              <SelectTrigger><SelectValue placeholder="Choisir une période" /></SelectTrigger>
+              <SelectContent>
+                {periodOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+
+            <div className="border-2 border-dashed rounded-xl p-8 text-center bg-slate-50 cursor-pointer" onClick={() => document.getElementById('file-upload')?.click()}>
+              <input type="file" id="file-upload" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+              <BrandIcon name="import" className="h-12 w-12 mx-auto mb-3 text-slate-400" />
+              <p className="text-sm text-slate-500">{file ? file.name : 'Sélectionnez un fichier'}</p>
             </div>
 
-            <div
-              className="border-2 border-dashed rounded-xl p-8 text-center bg-slate-50 cursor-pointer hover:bg-slate-100 transition-colors"
-              onClick={handlePickFile}
-            >
-              <FileSpreadsheet className="h-12 w-12 mx-auto mb-3 text-slate-400" />
-              {file ? (
-                <div className="text-primary font-bold">{file.name}</div>
-              ) : (
-                <div className="text-sm text-slate-500">
-                  Appuyez pour sélectionner un fichier Excel ou CSV
-                </div>
-              )}
-            </div>
-
-            <Button
-              className="w-full bg-[#004080] hover:bg-[#003060]"
-              onClick={handleUpload}
-              disabled={!file || !selectedPeriod || isUploading || !!pendingUpdate}
-            >
-              {isUploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
-              {isUploading ? "Traitement..." : "Lancer l'importation"}
+            <Button className="w-full bg-[#004080]" onClick={handleUpload} disabled={!file || !selectedPeriod || isUploading}>
+              {isUploading ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <BrandIcon name="import" className="mr-2 h-4 w-4" />}
+              {isUploading ? "Traitement..." : "Importer"}
             </Button>
           </CardContent>
         </Card>
 
         <div className="space-y-4">
           {validationErrors.length > 0 && (
-            <Alert variant={validationErrors[0].type === 'update_detected' ? 'default' : 'destructive'} className={validationErrors[0].type === 'update_detected' ? 'border-[#004080] bg-blue-50' : ''}>
-              {validationErrors[0].type === 'update_detected' ? <Info className="h-4 w-4 text-[#004080]" /> : <AlertTriangle className="h-4 w-4" />}
-              <AlertTitle>{validationErrors[0].type === 'update_detected' ? 'Mise à jour détectée' : 'Erreur de validation'}</AlertTitle>
-              <AlertDescription>
-                <p className="font-medium mt-1">{validationErrors[0].message}</p>
-                {validationErrors[0].details && (
-                  <ul className="text-xs mt-2 space-y-1 list-disc pl-4">
-                    {validationErrors[0].details.map((d, i) => <li key={i}>{d}</li>)}
-                  </ul>
-                )}
-                {validationErrors[0].type === 'update_detected' && (
-                  <Button
-                    className="mt-4 w-full bg-[#004080]"
-                    onClick={() => performImport(pendingUpdate!.rows)}
-                  >
-                    Confirmer et importer
-                  </Button>
-                )}
-              </AlertDescription>
+            <Alert variant={validationErrors[0].type === 'update_detected' ? 'default' : 'destructive'} className="bg-blue-50">
+              <BrandIcon name="info" className="h-4 w-4" />
+              <AlertTitle>{validationErrors[0].message}</AlertTitle>
+              {validationErrors[0].type === 'update_detected' && (
+                <Button className="mt-4 w-full bg-[#004080]" onClick={() => performImport(pendingUpdate!.rows)}>Confirmer</Button>
+              )}
             </Alert>
           )}
-
           {isSuccess && (
             <Alert className="bg-emerald-50 border-emerald-200">
-              <CheckCircle className="h-4 w-4 text-emerald-600" />
-              <AlertTitle className="text-emerald-800">Import réussi</AlertTitle>
-              <AlertDescription className="text-emerald-700">Vos données ont été enregistrées avec succès.</AlertDescription>
+              <BrandIcon name="success" className="h-4 w-4 text-emerald-600" />
+              <AlertTitle>Import réussi</AlertTitle>
             </Alert>
           )}
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Info className="h-4 w-4" />
-                Spécifications Techniques
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-slate-600 space-y-2">
-              <p>• <strong>PÉRIODE :</strong> YYYYMM (ex: 202501)</p>
-              <p>• <strong>MATRICULE :</strong> Identifiant unique salarié</p>
-              <p>• <strong>FORMATS :</strong> XLSX, XLS, CSV acceptés.</p>
-            </CardContent>
-          </Card>
         </div>
       </div>
     </div>

@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +11,7 @@ import { toast } from 'sonner';
 
 export default function AdminImports() {
   const [imports, setImports] = useState<MockImport[]>(initialImports);
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'completed': return <Badge className="bg-green-100 text-green-800 border-green-200">Terminé</Badge>;
@@ -50,7 +50,7 @@ export default function AdminImports() {
     });
 
     const buffer = await workbook.xlsx.writeBuffer();
-    saveAs(new Blob([buffer]), `imports_history_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`);
+    saveAs(new Blob([buffer]), "imports_history_" + format(new Date(), 'yyyyMMdd_HHmm') + ".xlsx");
   };
 
   const markAsRead = (id: string) => {

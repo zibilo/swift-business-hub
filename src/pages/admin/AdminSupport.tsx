@@ -1,8 +1,7 @@
-
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { mockSupportMessages } from '@/lib/mockData';
+import { mockSupportMessages, MockSupportMessage } from '@/lib/mockData';
 import { format } from 'date-fns';
 import { BrandIcon } from '@/components/BrandIcons';
 
@@ -27,7 +26,7 @@ export default function AdminSupport() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {mockSupportMessages.map((msg) => (
+            {mockSupportMessages.map((msg: MockSupportMessage) => (
               <TableRow key={msg.id}>
                 <TableCell>
                   {msg.status === 'unread' ? (

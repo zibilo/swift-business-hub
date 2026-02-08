@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BrandIcon } from '@/components/BrandIcons';
 import { mockCompanies, mockUsers, mockImports, mockSupportMessages } from '@/lib/mockData';
@@ -43,7 +42,7 @@ export default function AdminDashboard() {
           <Card key={stat.title}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-              <BrandIcon name={stat.icon} className={`h-4 w-4 ${stat.color}`} />
+              <BrandIcon name={stat.icon} className={"h-4 w-4 " + stat.color} />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stat.value}</div>
