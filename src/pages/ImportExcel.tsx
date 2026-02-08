@@ -392,7 +392,7 @@ const ImportExcel = () => {
           storage_path: storagePath,
           period: parseInt(selectedPeriod),
           selected_period: parseInt(selectedPeriod),
-          status: 'processing',
+          status: 'pending',
           uploaded_by: user.id,
           row_count: rows.length,
         })
@@ -455,10 +455,10 @@ const ImportExcel = () => {
         }
       }
 
-      // Marquer comme complété
+      // Marquer comme validé
       const { error: updateError } = await supabase
         .from('file_imports')
-        .update({ status: 'completed' })
+        .update({ status: 'validated' })
         .eq('id', importData.id);
 
       if (updateError) {
