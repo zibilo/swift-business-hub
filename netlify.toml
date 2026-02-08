@@ -1,0 +1,26 @@
+
+[build]
+  # Commande pour construire le projet
+  command = "npm run build"
+  # Dossier de sortie généré par Vite
+  publish = "dist"
+
+[build.environment]
+  # Définit une version de Node.js récente pour le build
+  NODE_VERSION = "20"
+
+# Règle de redirection pour les SPA (Single Page Applications)
+# Renvoie toutes les routes vers index.html pour que React Router gère l'affichage
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Headers de sécurité de base recommandés
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
