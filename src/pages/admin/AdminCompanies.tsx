@@ -1,86 +1,79 @@
-import { useState } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { mockCompanies, MockCompany } from '@/lib/mockData';
-import { BrandIcon } from '@/components/BrandIcons';
+import { format } from 'date-fns';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { Loader2 } from 'lucide-react';
 
 export default function AdminCompanies() {
-  const [searchTerm, setSearchTerm] = useState('');
+  const { data: companies, isLoading } = useQuery({
+    queryKey: ['admin-companies'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('companies')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data;
+    }
+  });
 
-  const filteredCompanies = mockCompanies.filter(c =>
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.siret.includes(searchTerm)
-  );
-
-  const getStatusBadge = (status: string) => {
+  // Mock status function logic based on data availability
+  const getStatusBadge = (company: any) => {
+    // Logic simulated: if siret exists -> active, else pending
+    const status = company.siret ? 'active' : 'pending';
+    
     switch (status) {
-      case 'active': return <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">Actif</Badge>;
+      case 'active': return <Badge className="bg-green-100 text-green-800 border-green-200">Actif</Badge>;
       case 'pending': return <Badge className="bg-amber-100 text-amber-800 border-amber-200">En attente</Badge>;
-      case 'suspended': return <Badge variant="destructive">Suspendu</Badge>;
       default: return <Badge>{status}</Badge>;
     }
   };
 
+  if (isLoading) {
+    return <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900">Entreprises</h1>
-          <p className="text-slate-500">Gérer les accès des partenaires</p>
-        </div>
-        <Button className="gap-2 bg-[#004080]">
-          <BrandIcon name="add" className="h-4 w-4" />
-          Nouvelle Entreprise
-        </Button>
+      <div>
+        <h1 className="text-3xl font-bold text-slate-900">Gestion des Entreprises</h1>
+        <p className="text-slate-500">Liste des entités juridiques enregistrées</p>
       </div>
-
-      <div className="flex items-center gap-4 bg-white p-4 rounded-lg border shadow-sm">
-        <div className="relative flex-1">
-          <BrandIcon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <Input
-            placeholder="Rechercher par nom ou SIRET..."
-            className="pl-10"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-      </div>
-
-      <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
+      <div className="bg-white rounded-lg border shadow-sm">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Nom de l'entreprise</TableHead>
+              <TableHead>Nom</TableHead>
               <TableHead>SIRET</TableHead>
+              <TableHead>Ville</TableHead>
               <TableHead>Statut</TableHead>
-              <TableHead>Date d'inscription</TableHead>
+              <TableHead>Date de création</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredCompanies.map((company: MockCompany) => (
+            {companies?.map((company) => (
               <TableRow key={company.id}>
                 <TableCell className="font-medium">{company.name}</TableCell>
-                <TableCell>{company.siret}</TableCell>
-                <TableCell>{getStatusBadge(company.status)}</TableCell>
-                <TableCell>{new Date(company.created_at).toLocaleDateString()}</TableCell>
+                <TableCell className="font-mono text-xs">{company.siret || '-'}</TableCell>
+                <TableCell>{company.city || '-'}</TableCell>
+                <TableCell>{getStatusBadge(company)}</TableCell>
+                <TableCell>{format(new Date(company.created_at), 'dd/MM/yyyy')}</TableCell>
                 <TableCell className="text-right">
-                  <div className="flex justify-end gap-2">
-                    <Button variant="ghost" size="sm">
-                      <BrandIcon name="edit" className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm" className="text-red-600">
-                      <BrandIcon name="delete" className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <button className="text-sm text-blue-600 hover:underline">Modifier</button>
                 </TableCell>
               </TableRow>
             ))}
+            {companies?.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Aucune entreprise trouvée</TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </div>
     </div>
   );
-}
+          }
