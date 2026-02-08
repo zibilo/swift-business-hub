@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import * as XLSX from 'xlsx';
 
 interface ValidationError {
-  type: 'structure' | 'format' | 'duplicate_internal' | 'duplicate_file' | 'period' | 'update_detected';
+  type: 'structure' | 'format' | 'duplicate_internal' | 'duplicate_file' | 'period' | 'update_detected' | 'upload';
   message: string;
   details?: string[];
 }
@@ -35,6 +35,10 @@ const ImportExcel = () => {
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [isSuccess, setIsSuccess] = useState(false);
   const [updateDetected, setUpdateDetected] = useState(false);
+
+  // Constantes de validation
+  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+  const VALID_EXTENSIONS = ['.xlsx', '.xls', '.xlsm', '.xlsb', '.csv', '.ods'];
 
   // Generate period options (current month + 11 previous months)
   const periodOptions = Array.from({ length: 12 }, (_, i) => {
@@ -76,153 +80,94 @@ const ImportExcel = () => {
       return { valid: false };
     }
 
-    // Vérifier qu'il n'y a pas de colonnes supplémentaires inattendues
-    const extraColumns = headers.filter(h => h && !expectedColumns.includes(h));
-    if (extraColumns.length > 0) {
-      setValidationErrors([{
-        type: 'structure',
-        message: 'Structure du fichier incorrecte',
-        details: [`Colonnes non attendues : ${extraColumns.join(', ')}`],
-      }]);
-      return { valid: false };
-    }
-
     return { valid: true, headers };
   };
 
-  // ÉTAPE 2 : Valider chaque champ
-  const validateFieldFormats = (data: unknown[][], headers: string[]): { valid: boolean; rows?: ParsedRow[]; errors?: string[] } => {
+  // ÉTAPE 2 : Valider les formats des champs
+  const validateFieldFormats = (data: unknown[][], headers: string[]): { valid: boolean; rows?: ParsedRow[] } => {
+    const periodeIndex = headers.findIndex(h => h === 'PÉRIODE');
+    const matriculeIndex = headers.findIndex(h => h === 'MATRICULE');
+    const nomIndex = headers.findIndex(h => h === 'NOM');
+    const prenomIndex = headers.findIndex(h => h === 'PRENOM');
+    const codeCaisseIndex = headers.findIndex(h => h === 'CODE CAISSE');
+    const ccoIndex = headers.findIndex(h => h === 'CCO');
+    const montantIndex = headers.findIndex(h => h === 'MONTANT');
+
     const rows: ParsedRow[] = [];
     const formatErrors: string[] = [];
 
-    const periodeIndex = headers.indexOf('PÉRIODE');
-    const matriculeIndex = headers.indexOf('MATRICULE');
-    const nomIndex = headers.indexOf('NOM');
-    const prenomIndex = headers.indexOf('PRENOM');
-    const codeCaisseIndex = headers.indexOf('CODE CAISSE');
-    const ccoIndex = headers.indexOf('CCO');
-    const montantIndex = headers.indexOf('MONTANT');
-
     for (let i = 1; i < data.length; i++) {
       const row = data[i] as unknown[];
-      if (!row || row.length === 0) continue;
-
-      const rowNum = i + 1;
-      let hasError = false;
-
-      // Extraire les valeurs
-      const periode = String(row[periodeIndex] ?? '').trim();
-      const matricule = String(row[matriculeIndex] ?? '').trim();
-      const nom = String(row[nomIndex] ?? '').trim();
-      const prenom = String(row[prenomIndex] ?? '').trim();
-      const codeCaisse = String(row[codeCaisseIndex] ?? '').trim();
-      const cco = String(row[ccoIndex] ?? '').trim();
-      const montant = row[montantIndex];
-
-      // Valider PÉRIODE (format YYYYMM)
-      if (!/^\d{6}$/.test(periode)) {
-        formatErrors.push(`Ligne ${rowNum} : PÉRIODE invalide (format attendu : YYYYMM, ex: 202501)`);
-        hasError = true;
+      
+      if (!row[periodeIndex] || !row[matriculeIndex] || !row[nomIndex] || !row[prenomIndex] || 
+          !row[codeCaisseIndex] || !row[ccoIndex] || !row[montantIndex]) {
+        formatErrors.push(`Ligne ${i + 1}: Champs manquants`);
+        continue;
       }
 
-      // Valider MATRICULE (exactement 7 chiffres)
-      if (!/^\d{7}$/.test(matricule)) {
-        formatErrors.push(`Ligne ${rowNum} : MATRICULE invalide (7 chiffres requis)`);
-        hasError = true;
+      const periode = parseInt(String(row[periodeIndex]));
+      const montant = parseInt(String(row[montantIndex]));
+
+      if (isNaN(periode) || String(periode).length !== 6) {
+        formatErrors.push(`Ligne ${i + 1}: Format de période invalide (YYYYMM attendu)`);
+        continue;
       }
 
-      // Valider CODE CAISSE (exactement 3 chiffres)
-      if (!/^\d{3}$/.test(codeCaisse)) {
-        formatErrors.push(`Ligne ${rowNum} : CODE CAISSE invalide (3 chiffres requis)`);
-        hasError = true;
+      if (isNaN(montant)) {
+        formatErrors.push(`Ligne ${i + 1}: Montant invalide`);
+        continue;
       }
 
-      // Valider CCO (exactement 6 chiffres)
-      if (!/^\d{6}$/.test(cco)) {
-        formatErrors.push(`Ligne ${rowNum} : CCO invalide (6 chiffres requis)`);
-        hasError = true;
-      }
-
-      // Valider MONTANT (numérique uniquement, accepte les grands nombres)
-      const montantNum = Number(montant);
-      if (isNaN(montantNum) || montantNum < 0) {
-        formatErrors.push(`Ligne ${rowNum} : MONTANT invalide (nombre positif requis, ex: 10987777)`);
-        hasError = true;
-      }
-
-      // Valider NOM et PRENOM (non vides)
-      if (!nom) {
-        formatErrors.push(`Ligne ${rowNum} : NOM requis`);
-        hasError = true;
-      }
-      if (!prenom) {
-        formatErrors.push(`Ligne ${rowNum} : PRENOM requis`);
-        hasError = true;
-      }
-
-      if (!hasError) {
-        rows.push({
-          periode: parseInt(periode),
-          matricule,
-          nom,
-          prenom,
-          code_caisse: codeCaisse,
-          cco,
-          montant: montantNum,
-          row_number: rowNum,
-        });
-      }
+      rows.push({
+        periode,
+        matricule: String(row[matriculeIndex]).trim(),
+        nom: String(row[nomIndex]).trim().toUpperCase(),
+        prenom: String(row[prenomIndex]).trim().toUpperCase(),
+        code_caisse: String(row[codeCaisseIndex]).trim(),
+        cco: String(row[ccoIndex]).trim(),
+        montant,
+        row_number: i + 1,
+      });
     }
 
     if (formatErrors.length > 0) {
       setValidationErrors([{
         type: 'format',
         message: 'Erreurs de format détectées',
-        details: formatErrors.slice(0, 10),
+        details: formatErrors.slice(0, 20),
       }]);
-      return { valid: false, errors: formatErrors };
+      return { valid: false };
+    }
+
+    if (rows.length === 0) {
+      setValidationErrors([{
+        type: 'format',
+        message: 'Aucune donnée valide trouvée',
+      }]);
+      return { valid: false };
     }
 
     return { valid: true, rows };
   };
 
-  // Vérifier que la période correspond
-  const validatePeriod = (rows: ParsedRow[], selectedPeriod: number): boolean => {
-    const invalidRows = rows.filter(r => r.periode !== selectedPeriod);
-    if (invalidRows.length > 0) {
-      setValidationErrors([{
-        type: 'period',
-        message: 'La période du fichier ne correspond pas à la période sélectionnée',
-        details: [`${invalidRows.length} ligne(s) avec une période différente`],
-      }]);
-      return false;
-    }
-    return true;
-  };
-
-  // ÉTAPE 3 : Détection des doublons internes
+  // ÉTAPE 3 : Vérifier les doublons internes
   const checkInternalDuplicates = (rows: ParsedRow[]): boolean => {
-    const matriculeSet = new Set<string>();
-    const ccoSet = new Set<string>();
+    const seen = new Set<string>();
     const duplicates: string[] = [];
 
     for (const row of rows) {
-      if (matriculeSet.has(row.matricule)) {
-        duplicates.push(`MATRICULE ${row.matricule} apparaît plusieurs fois (ligne ${row.row_number})`);
+      const key = `${row.periode}-${row.matricule}`;
+      if (seen.has(key)) {
+        duplicates.push(`Ligne ${row.row_number}: Doublon détecté (${row.matricule})`);
       }
-      if (ccoSet.has(row.cco)) {
-        duplicates.push(`CCO ${row.cco} apparaît plusieurs fois (ligne ${row.row_number})`);
-      }
-      
-      matriculeSet.add(row.matricule);
-      ccoSet.add(row.cco);
+      seen.add(key);
     }
 
     if (duplicates.length > 0) {
       setValidationErrors([{
         type: 'duplicate_internal',
-        message: 'Doublon détecté dans le fichier — risque de double paiement',
-        details: duplicates.slice(0, 10),
+        message: 'Doublons détectés dans le fichier',
+        details: duplicates.slice(0, 20),
       }]);
       return false;
     }
@@ -230,97 +175,90 @@ const ImportExcel = () => {
     return true;
   };
 
-  // ÉTAPE 4 : Vérification avec les anciens fichiers
-  const checkHistoricalDuplicates = async (rows: ParsedRow[], selectedPeriod: number): Promise<{ valid: boolean; isUpdate: boolean }> => {
-    if (!companyUser?.company_id) return { valid: false, isUpdate: false };
-
-    // Récupérer les fichiers précédents pour cette période
-    const { data: previousImports } = await supabase
-      .from('file_imports')
-      .select('id, row_count')
-      .eq('company_id', companyUser.company_id)
-      .eq('period', selectedPeriod)
-      .eq('status', 'completed')
-      .order('created_at', { ascending: false });
-
-    if (!previousImports || previousImports.length === 0) {
-      // Nouveau fichier - pas d'historique
-      return { valid: true, isUpdate: false };
-    }
-
-    // Récupérer les lignes du dernier fichier importé
-    const lastImportId = previousImports[0].id;
-    const { data: previousRows } = await supabase
-      .from('file_import_rows')
-      .select('matricule, cco, code_caisse, montant, nom_prenom')
-      .eq('file_import_id', lastImportId);
-
-    if (!previousRows || previousRows.length === 0) {
-      return { valid: true, isUpdate: false };
-    }
-
-    // Comparer les données
-    // Créer une signature pour chaque ligne
-    const createSignature = (r: any) => {
-      return `${r.matricule}|${r.cco}|${r.code_caisse}|${r.montant}`;
-    };
-
-    const previousSignatures = new Set(
-      previousRows.map(r => createSignature({
-        matricule: r.matricule,
-        cco: r.cco,
-        code_caisse: r.code_caisse,
-        montant: r.montant,
-      }))
-    );
-
-    const currentSignatures = new Set(
-      rows.map(r => createSignature({
-        matricule: r.matricule,
-        cco: r.cco,
-        code_caisse: r.code_caisse,
-        montant: r.montant,
-      }))
-    );
-
-    // Vérifier si c'est exactement le même fichier
-    const allMatch = rows.length === previousRows.length &&
-      rows.every(r => previousSignatures.has(createSignature({
-        matricule: r.matricule,
-        cco: r.cco,
-        code_caisse: r.code_caisse,
-        montant: r.montant,
-      })));
-
-    if (allMatch) {
+  // ÉTAPE 4 : Vérifier avec l'historique
+  const checkHistoricalDuplicates = async (rows: ParsedRow[], period: number): Promise<{ valid: boolean; isUpdate: boolean }> => {
+    if (!companyUser?.company_id) {
       setValidationErrors([{
-        type: 'duplicate_file',
-        message: 'Ce fichier a déjà été transmis. Aucune mise à jour détectée.',
+        type: 'update_detected',
+        message: 'Erreur: Informations entreprise manquantes',
       }]);
       return { valid: false, isUpdate: false };
     }
 
-    // Déterminer s'il y a des changements
-    const hasChanges = !allMatch;
+    try {
+      const { data: existingRows, error } = await supabase
+        .from('file_import_rows')
+        .select('periode, matricule')
+        .eq('periode', period);
 
-    if (hasChanges) {
-      setUpdateDetected(true);
-      return { valid: true, isUpdate: true };
+      if (error) {
+        console.error('Erreur lors de la vérification des doublons:', error);
+        setValidationErrors([{
+          type: 'duplicate_file',
+          message: 'Erreur lors de la vérification de l\'historique',
+          details: [error.message],
+        }]);
+        return { valid: false, isUpdate: false };
+      }
+
+      const existingSet = new Set(existingRows?.map(r => `${r.periode}-${r.matricule}`) || []);
+      const duplicates = rows.filter(r => existingSet.has(`${r.periode}-${r.matricule}`));
+
+      if (duplicates.length > 0) {
+        setUpdateDetected(true);
+        return { valid: true, isUpdate: true };
+      }
+
+      return { valid: true, isUpdate: false };
+    } catch (error) {
+      console.error('Erreur non attendue lors de la vérification:', error);
+      setValidationErrors([{
+        type: 'duplicate_file',
+        message: 'Erreur lors de la vérification de l\'historique',
+        details: [error instanceof Error ? error.message : 'Erreur inconnue'],
+      }]);
+      return { valid: false, isUpdate: false };
+    }
+  };
+  
+
+  const validatePeriod = (rows: ParsedRow[], selectedPeriod: number): boolean => {
+    const invalidPeriods = rows.filter(r => r.periode !== selectedPeriod);
+
+    if (invalidPeriods.length > 0) {
+      setValidationErrors([{
+        type: 'period',
+        message: 'Période incohérente détectée',
+        details: [
+          `La période sélectionnée est ${String(selectedPeriod).slice(0, 4)}-${String(selectedPeriod).slice(4)}`,
+          `Mais le fichier contient des données de période différente`,
+        ],
+      }]);
+      return false;
     }
 
-    return { valid: true, isUpdate: false };
+    return true;
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
-      const validExtensions = ['.xlsx', '.xls', '.xlsm', '.xlsb', '.csv', '.ods'];
+      // Validation de l'extension
       const fileExtension = selectedFile.name.toLowerCase().substring(selectedFile.name.lastIndexOf('.'));
-      
-      if (!validExtensions.includes(fileExtension)) {
+      if (!VALID_EXTENSIONS.includes(fileExtension)) {
         toast({
           title: 'Format non supporté',
-          description: 'Veuillez sélectionner un fichier Excel (.xlsx, .xls, .xlsm, .xlsb) ou CSV',
+          description: `Formats acceptés: ${VALID_EXTENSIONS.join(', ')}`,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Validation de la taille
+      if (selectedFile.size > MAX_FILE_SIZE) {
+        toast({
+          title: 'Fichier trop volumineux',
+          description: `La taille maximale est 10MB. Votre fichier fait ${(selectedFile.size / 1024 / 1024).toFixed(2)}MB`,
           variant: 'destructive',
         });
         return;
@@ -365,11 +303,8 @@ const ImportExcel = () => {
           cellText: false
         });
       }
-      
+
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-
-
-    
       const data = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1 });
 
       // ÉTAPE 1 : Vérifier la structure
@@ -409,15 +344,44 @@ const ImportExcel = () => {
         return;
       }
 
-      // Téléverser le fichier
+      // Téléverser le fichier avec meilleure gestion d'erreurs
       const storagePath = `${companyUser.company_id}/${Date.now()}_${file.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from('excel-imports')
-        .upload(storagePath, file);
+      
+      try {
+        const { error: uploadError } = await supabase.storage
+          .from('excel-imports')
+          .upload(storagePath, file, {
+            cacheControl: '3600',
+            upsert: false,
+          });
 
-      if (uploadError) {
-        throw new Error('Erreur lors du téléversement du fichier');
-      }
+        if (uploadError) {
+          console.error('Erreur détaillée du téléversement:', uploadError);
+          
+          // Messages d'erreur personnalisés selon le type d'erreur
+          let errorMessage = 'Erreur lors du téléversement du fichier';
+          
+          if (uploadError.message?.includes('Bucket not found')) {
+            errorMessage = 'Le bucket de stockage n\'existe pas. Contactez l\'administrateur.';
+          } else if (uploadError.message?.includes('Permission denied')) {
+            errorMessage = 'Permissions insuffisantes pour téléverser. Contactez l\'administrateur.';
+          } else if (uploadError.message?.includes('Payload too large')) {
+            errorMessage = 'Le fichier est trop volumineux.';
+          } else {
+            errorMessage = `${errorMessage}: ${uploadError.message || 'Erreur inconnue'}`;
+          }
+          
+          throw new Error(errorMessage);
+        }
+      } catch (uploadError) {
+        console.error('Erreur réseau ou serveur lors du téléversement:', uploadError);
+        throw new Error(
+          uploadError instanceof Error 
+            ? uploadError.message 
+            : 'Erreur lors du téléversement du fichier'
+        );
+        }
+      
 
       // Créer l'enregistrement d'import
       const { data: importData, error: importError } = await supabase
@@ -435,9 +399,12 @@ const ImportExcel = () => {
         .select()
         .single();
 
-      if (importError) throw importError;
+      if (importError) {
+        console.error('Erreur lors de la création de l\'enregistrement:', importError);
+        throw new Error(`Erreur lors de la création du dossier d'import: ${importError.message}`);
+      }
 
-      // Insérer les lignes
+      // Insérer les lignes - SANS company_id
       const rowsToInsert = rows.map(row => ({
         file_import_id: importData.id,
         periode: row.periode,
@@ -453,19 +420,26 @@ const ImportExcel = () => {
         .from('file_import_rows')
         .insert(rowsToInsert);
 
-      if (rowsError) throw rowsError;
+      if (rowsError) {
+        console.error('Erreur lors de l\'insertion des lignes:', rowsError);
+        throw new Error(`Erreur lors de l'importation des lignes: ${rowsError.message}`);
+      }
 
       // Mettre à jour les références employés
-      const { data: existingRefs } = await supabase
+      const { data: existingRefs, error: refError } = await supabase
         .from('employee_references')
         .select('matricule')
         .eq('company_id', companyUser.company_id);
+
+      if (refError) {
+        console.error('Erreur lors de la vérification des références:', refError);
+      }
 
       const existingMatricules = new Set(existingRefs?.map(r => r.matricule) || []);
       const newEmployees = rows.filter(r => !existingMatricules.has(r.matricule));
 
       if (newEmployees.length > 0) {
-        await supabase.from('employee_references').insert(
+        const { error: empError } = await supabase.from('employee_references').insert(
           newEmployees.map(e => ({
             company_id: companyUser.company_id,
             matricule: e.matricule,
@@ -475,13 +449,21 @@ const ImportExcel = () => {
             first_seen_file_id: importData.id,
           }))
         );
+        
+        if (empError) {
+          console.error('Erreur lors de la création des références employés:', empError);
+        }
       }
 
       // Marquer comme complété
-      await supabase
+      const { error: updateError } = await supabase
         .from('file_imports')
         .update({ status: 'completed' })
         .eq('id', importData.id);
+
+      if (updateError) {
+        console.error('Erreur lors de la mise à jour du statut:', updateError);
+      }
 
       setIsSuccess(true);
       setFile(null);
@@ -493,7 +475,11 @@ const ImportExcel = () => {
       });
 
     } catch (error) {
-      console.error('Import error:', error);
+      console.error('Erreur lors de l\'import:', error);
+      setValidationErrors([{
+        type: 'upload',
+        message: error instanceof Error ? error.message : 'Une erreur est survenue lors de l\'import',
+      }]);
       toast({
         title: 'Erreur',
         description: error instanceof Error ? error.message : 'Une erreur est survenue',
@@ -559,7 +545,7 @@ const ImportExcel = () => {
               <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
                 <input
                   type="file"
-                  accept=".xlsx,.xls,.xlsm,.xlsb,.csv,.ods"
+                  accept={VALID_EXTENSIONS.join(',')}
                   onChange={handleFileChange}
                   className="hidden"
                   id="file-upload"
@@ -574,7 +560,7 @@ const ImportExcel = () => {
                         Cliquez pour sélectionner un fichier
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Formats acceptés: .xlsx, .xls, .xlsm, .xlsb, .csv, .ods
+                        Formats acceptés: {VALID_EXTENSIONS.join(', ')} (Max 10MB)
                       </p>
                     </>
                   )}
@@ -617,8 +603,8 @@ const ImportExcel = () => {
                         {err.details.map((d, j) => (
                           <li key={j}>{d}</li>
                         ))}
-                        {err.details.length > 10 && (
-                          <li className="text-muted-foreground">... et {err.details.length - 10} autre(s) erreur(s)</li>
+                        {err.details.length > 20 && (
+                          <li className="text-muted-foreground">... et {err.details.length - 20} autre(s) erreur(s)</li>
                         )}
                       </ul>
                     )}
@@ -680,4 +666,3 @@ const ImportExcel = () => {
 };
 
 export default ImportExcel;
-          
