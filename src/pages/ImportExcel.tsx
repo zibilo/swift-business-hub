@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { FileSpreadsheet, Upload, AlertTriangle, CheckCircle, Download, Loader2, Info } from 'lucide-react';
+import { FileSpreadsheet, Upload, AlertTriangle, CheckCircle, Download, Loader2, Info, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import * as XLSX from 'xlsx';
@@ -35,6 +35,10 @@ const ImportExcel = () => {
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [isSuccess, setIsSuccess] = useState(false);
   const [updateDetected, setUpdateDetected] = useState(false);
+  const [pendingUpdate, setPendingUpdate] = useState<{
+    rows: ParsedRow[];
+    historyCheck: { valid: boolean; isUpdate: boolean };
+  } | null>(null);
 
   // Constantes de validation
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -83,7 +87,7 @@ const ImportExcel = () => {
     return { valid: true, headers };
   };
 
-  // ÉTAPE 2 : Valider les formats des champs
+  // ÉTAPE 2 : Valider les formats des champs (STRICTEMENT)
   const validateFieldFormats = (data: unknown[][], headers: string[]): { valid: boolean; rows?: ParsedRow[] } => {
     const periodeIndex = headers.findIndex(h => h === 'PÉRIODE');
     const matriculeIndex = headers.findIndex(h => h === 'MATRICULE');
@@ -98,43 +102,88 @@ const ImportExcel = () => {
 
     for (let i = 1; i < data.length; i++) {
       const row = data[i] as unknown[];
+      const rowNum = i + 1;
       
-      if (!row[periodeIndex] || !row[matriculeIndex] || !row[nomIndex] || !row[prenomIndex] || 
-          !row[codeCaisseIndex] || !row[ccoIndex] || !row[montantIndex]) {
-        formatErrors.push(`Ligne ${i + 1}: Champs manquants`);
-        continue;
+      // Vérifier que la ligne n'est pas vide
+      if (!row || row.length === 0 || row.every(cell => !cell)) {
+        continue; // Ignorer les lignes vides
       }
 
-      const periode = parseInt(String(row[periodeIndex]));
-      const montant = parseInt(String(row[montantIndex]));
+      let hasError = false;
 
-      if (isNaN(periode) || String(periode).length !== 6) {
-        formatErrors.push(`Ligne ${i + 1}: Format de période invalide (YYYYMM attendu)`);
-        continue;
+      // Extraire et nettoyer les valeurs
+      const periode = String(row[periodeIndex] ?? '').trim();
+      const matricule = String(row[matriculeIndex] ?? '').trim();
+      const nom = String(row[nomIndex] ?? '').trim();
+      const prenom = String(row[prenomIndex] ?? '').trim();
+      const codeCaisse = String(row[codeCaisseIndex] ?? '').trim();
+      const cco = String(row[ccoIndex] ?? '').trim();
+      const montantRaw = String(row[montantIndex] ?? '').trim();
+
+      // VALIDATION STRICTE : PÉRIODE (exactement 6 chiffres, format YYYYMM)
+      if (!/^\d{6}$/.test(periode)) {
+        formatErrors.push(`Ligne ${rowNum} : PÉRIODE invalide "${periode}" (format requis : YYYYMM, exactement 6 chiffres)`);
+        hasError = true;
       }
 
-      if (isNaN(montant)) {
-        formatErrors.push(`Ligne ${i + 1}: Montant invalide`);
-        continue;
+      // VALIDATION STRICTE : MATRICULE (exactement 7 chiffres)
+      if (!/^\d{7}$/.test(matricule)) {
+        formatErrors.push(`Ligne ${rowNum} : MATRICULE invalide "${matricule}" (requis : exactement 7 chiffres)`);
+        hasError = true;
       }
 
-      rows.push({
-        periode,
-        matricule: String(row[matriculeIndex]).trim(),
-        nom: String(row[nomIndex]).trim().toUpperCase(),
-        prenom: String(row[prenomIndex]).trim().toUpperCase(),
-        code_caisse: String(row[codeCaisseIndex]).trim(),
-        cco: String(row[ccoIndex]).trim(),
-        montant,
-        row_number: i + 1,
-      });
+      // VALIDATION STRICTE : CODE CAISSE (exactement 3 chiffres)
+      if (!/^\d{3}$/.test(codeCaisse)) {
+        formatErrors.push(`Ligne ${rowNum} : CODE CAISSE invalide "${codeCaisse}" (requis : exactement 3 chiffres)`);
+        hasError = true;
+      }
+
+      // VALIDATION STRICTE : CCO (exactement 6 chiffres)
+      if (!/^\d{6}$/.test(cco)) {
+        formatErrors.push(`Ligne ${rowNum} : CCO invalide "${cco}" (requis : exactement 6 chiffres)`);
+        hasError = true;
+      }
+
+      // VALIDATION STRICTE : MONTANT (nombre uniquement, entier ou décimal)
+      const montantNum = Number(montantRaw);
+      if (montantRaw === '' || isNaN(montantNum)) {
+        formatErrors.push(`Ligne ${rowNum} : MONTANT invalide "${montantRaw}" (requis : nombre uniquement)`);
+        hasError = true;
+      }
+
+      // VALIDATION : NOM et PRENOM (non vides)
+      if (!nom || nom.length === 0) {
+        formatErrors.push(`Ligne ${rowNum} : NOM requis (champ vide)`);
+        hasError = true;
+      }
+      if (!prenom || prenom.length === 0) {
+        formatErrors.push(`Ligne ${rowNum} : PRENOM requis (champ vide)`);
+        hasError = true;
+      }
+
+      // Si pas d'erreur, ajouter la ligne
+      if (!hasError) {
+        rows.push({
+          periode: parseInt(periode),
+          matricule,
+          nom: nom.toUpperCase(),
+          prenom: prenom.toUpperCase(),
+          code_caisse: codeCaisse,
+          cco,
+          montant: montantNum,
+          row_number: rowNum,
+        });
+      }
     }
 
     if (formatErrors.length > 0) {
       setValidationErrors([{
         type: 'format',
-        message: 'Erreurs de format détectées',
-        details: formatErrors.slice(0, 20),
+        message: `❌ Erreurs de format détectées (${formatErrors.length} erreur${formatErrors.length > 1 ? 's' : ''})`,
+        details: [
+          ...formatErrors.slice(0, 10),
+          ...(formatErrors.length > 10 ? [`... et ${formatErrors.length - 10} autre(s) erreur(s)`] : []),
+        ],
       }]);
       return { valid: false };
     }
@@ -142,7 +191,8 @@ const ImportExcel = () => {
     if (rows.length === 0) {
       setValidationErrors([{
         type: 'format',
-        message: 'Aucune donnée valide trouvée',
+        message: '❌ Aucune donnée valide trouvée dans le fichier',
+        details: ['Le fichier ne contient aucune ligne de données valide.'],
       }]);
       return { valid: false };
     }
@@ -150,24 +200,77 @@ const ImportExcel = () => {
     return { valid: true, rows };
   };
 
-  // ÉTAPE 3 : Vérifier les doublons internes
+  // ÉTAPE 3 : Vérifier les doublons internes (MATRICULE et CCO)
   const checkInternalDuplicates = (rows: ParsedRow[]): boolean => {
-    const seen = new Set<string>();
+    const matriculeMap = new Map<string, number[]>();
+    const ccoMap = new Map<string, number[]>();
     const duplicates: string[] = [];
 
+    // Parcourir toutes les lignes pour détecter les doublons
     for (const row of rows) {
-      const key = `${row.periode}-${row.matricule}`;
-      if (seen.has(key)) {
-        duplicates.push(`Ligne ${row.row_number}: Doublon détecté (${row.matricule})`);
+      // Vérifier les doublons de MATRICULE
+      if (!matriculeMap.has(row.matricule)) {
+        matriculeMap.set(row.matricule, [row.row_number]);
+      } else {
+        matriculeMap.get(row.matricule)!.push(row.row_number);
       }
-      seen.add(key);
+
+      // Vérifier les doublons de CCO
+      if (!ccoMap.has(row.cco)) {
+        ccoMap.set(row.cco, [row.row_number]);
+      } else {
+        ccoMap.get(row.cco)!.push(row.row_number);
+      }
+    }
+
+    // Collecter les doublons de MATRICULE
+    for (const [matricule, lineNumbers] of matriculeMap.entries()) {
+      if (lineNumbers.length > 1) {
+        duplicates.push(
+          `⚠️ MATRICULE ${matricule} apparaît ${lineNumbers.length} fois (lignes ${lineNumbers.join(', ')})`
+        );
+      }
+    }
+
+    // Collecter les doublons de CCO
+    for (const [cco, lineNumbers] of ccoMap.entries()) {
+      if (lineNumbers.length > 1) {
+        duplicates.push(
+          `⚠️ CCO ${cco} apparaît ${lineNumbers.length} fois (lignes ${lineNumbers.join(', ')})`
+        );
+      }
     }
 
     if (duplicates.length > 0) {
       setValidationErrors([{
         type: 'duplicate_internal',
-        message: 'Doublons détectés dans le fichier',
-        details: duplicates.slice(0, 20),
+        message: '❌ Doublon détecté dans le fichier — risque de double paiement',
+        details: [
+          'Les doublons suivants ont été détectés :',
+          '',
+          ...duplicates.slice(0, 10),
+          ...(duplicates.length > 10 ? [`... et ${duplicates.length - 10} autre(s) doublon(s)`] : []),
+          '',
+          '💡 Vérifiez et corrigez le fichier avant de réimporter.',
+        ],
+      }]);
+      return false;
+    }
+
+    return true;
+  };
+
+  const validatePeriod = (rows: ParsedRow[], selectedPeriod: number): boolean => {
+    const invalidPeriods = rows.filter(r => r.periode !== selectedPeriod);
+
+    if (invalidPeriods.length > 0) {
+      setValidationErrors([{
+        type: 'period',
+        message: 'Période incohérente détectée',
+        details: [
+          `La période sélectionnée est ${String(selectedPeriod).slice(0, 4)}-${String(selectedPeriod).slice(4)}`,
+          `Mais le fichier contient des données de période différente`,
+        ],
       }]);
       return false;
     }
@@ -186,30 +289,169 @@ const ImportExcel = () => {
     }
 
     try {
-      const { data: existingRows, error } = await supabase
-        .from('file_import_rows')
-        .select('periode, matricule')
-        .eq('periode', period);
+      // Récupérer tous les imports pour cette période et cette entreprise
+      const { data: previousImports, error: importsError } = await supabase
+        .from('file_imports')
+        .select('id, row_count, filename, created_at')
+        .eq('company_id', companyUser.company_id)
+        .eq('period', period)
+        .in('status', ['pending', 'validated'])
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-      if (error) {
-        console.error('Erreur lors de la vérification des doublons:', error);
+      if (importsError) {
+        console.error('Erreur lors de la récupération des imports:', importsError);
         setValidationErrors([{
           type: 'duplicate_file',
           message: 'Erreur lors de la vérification de l\'historique',
-          details: [error.message],
+          details: [importsError.message],
         }]);
         return { valid: false, isUpdate: false };
       }
 
-      const existingSet = new Set(existingRows?.map(r => `${r.periode}-${r.matricule}`) || []);
-      const duplicates = rows.filter(r => existingSet.has(`${r.periode}-${r.matricule}`));
-
-      if (duplicates.length > 0) {
-        setUpdateDetected(true);
-        return { valid: true, isUpdate: true };
+      // Si aucun import précédent, c'est un nouveau fichier
+      if (!previousImports || previousImports.length === 0) {
+        console.log('✅ Nouveau fichier - aucun historique trouvé pour cette période');
+        return { valid: true, isUpdate: false };
       }
 
-      return { valid: true, isUpdate: false };
+      const lastImport = previousImports[0];
+      console.log('📄 Fichier précédent trouvé:', {
+        id: lastImport.id,
+        filename: lastImport.filename,
+        rows: lastImport.row_count,
+        date: lastImport.created_at,
+      });
+
+      // Récupérer toutes les lignes du dernier import
+      const { data: existingRows, error: rowsError } = await supabase
+        .from('file_import_rows')
+        .select('periode, matricule, nom_prenom, code_caisse, cco, montant')
+        .eq('file_import_id', lastImport.id)
+        .order('matricule', { ascending: true });
+
+      if (rowsError) {
+        console.error('Erreur lors de la récupération des lignes:', rowsError);
+        setValidationErrors([{
+          type: 'duplicate_file',
+          message: 'Erreur lors de la vérification de l\'historique',
+          details: [rowsError.message],
+        }]);
+        return { valid: false, isUpdate: false };
+      }
+
+      if (!existingRows || existingRows.length === 0) {
+        console.log('✅ Nouveau fichier - aucune ligne trouvée dans l\'historique');
+        return { valid: true, isUpdate: false };
+      }
+
+      // Créer une signature complète pour chaque ligne (tous les champs)
+      const createSignature = (r: any) => {
+        return `${r.periode}|${r.matricule}|${r.nom_prenom}|${r.code_caisse}|${r.cco}|${r.montant}`;
+      };
+
+      // Trier les lignes actuelles par matricule pour une comparaison cohérente
+      const sortedCurrentRows = [...rows].sort((a, b) => a.matricule.localeCompare(b.matricule));
+
+      // Créer les sets de signatures
+      const previousSignatures = new Set(
+        existingRows.map(r => createSignature({
+          periode: r.periode,
+          matricule: r.matricule,
+          nom_prenom: r.nom_prenom,
+          code_caisse: r.code_caisse,
+          cco: r.cco,
+          montant: r.montant,
+        }))
+      );
+
+      // Vérifier si les fichiers sont identiques
+      const isIdentical = 
+        rows.length === existingRows.length &&
+        sortedCurrentRows.every(r => previousSignatures.has(createSignature({
+          periode: r.periode,
+          matricule: r.matricule,
+          nom_prenom: `${r.nom} ${r.prenom}`,
+          code_caisse: r.code_caisse,
+          cco: r.cco,
+          montant: r.montant,
+        })));
+
+      if (isIdentical) {
+        // CAS 1: Fichier identique → REJET
+        console.log('❌ Fichier identique détecté - Import rejeté');
+        setValidationErrors([{
+          type: 'duplicate_file',
+          message: '❌ Ce fichier a déjà été transmis. Aucune mise à jour détectée.',
+          details: [
+            `Fichier précédent: ${lastImport.filename}`,
+            `Date de transmission: ${new Date(lastImport.created_at).toLocaleString('fr-FR')}`,
+            `Nombre de lignes: ${existingRows.length}`,
+            '⚠️ Le fichier est strictement identique au précédent.',
+            '💡 Si vous souhaitez corriger des données, modifiez le fichier puis réimportez-le.',
+          ],
+        }]);
+        return { valid: false, isUpdate: false };
+      }
+      
+
+      // CAS 2: Fichier modifié → ALERTE puis ACCEPTATION après confirmation
+      console.log('🔄 Modifications détectées dans le fichier');
+
+      // Détecter les différences
+      const differences: string[] = [];
+
+      // Vérifier les nouvelles lignes
+      const existingMatricules = new Set(existingRows.map(r => r.matricule));
+      const newRows = sortedCurrentRows.filter(r => !existingMatricules.has(r.matricule));
+
+      // Vérifier les lignes supprimées
+      const currentMatricules = new Set(sortedCurrentRows.map(r => r.matricule));
+      const deletedRows = existingRows.filter(r => !currentMatricules.has(r.matricule));
+
+      // Vérifier les lignes modifiées
+      const modifiedRows = sortedCurrentRows.filter(currentRow => {
+        const currentSig = createSignature({
+          periode: currentRow.periode,
+          matricule: currentRow.matricule,
+          nom_prenom: `${currentRow.nom} ${currentRow.prenom}`,
+          code_caisse: currentRow.code_caisse,
+          cco: currentRow.cco,
+          montant: currentRow.montant,
+        });
+        return existingMatricules.has(currentRow.matricule) && !previousSignatures.has(currentSig);
+      });
+
+      if (newRows.length > 0) {
+        differences.push(`➕ ${newRows.length} nouvelle(s) ligne(s) ajoutée(s)`);
+      }
+      if (deletedRows.length > 0) {
+        differences.push(`➖ ${deletedRows.length} ligne(s) supprimée(s)`);
+      }
+      if (modifiedRows.length > 0) {
+        differences.push(`✏️ ${modifiedRows.length} ligne(s) modifiée(s)`);
+      }
+
+      // Afficher l'alerte de mise à jour
+      setUpdateDetected(true);
+      setValidationErrors([{
+        type: 'update_detected',
+        message: '🔄 Mise à jour détectée',
+        details: [
+          `Fichier précédent: ${lastImport.filename}`,
+          `Date: ${new Date(lastImport.created_at).toLocaleString('fr-FR')}`,
+          `Anciennes lignes: ${existingRows.length}`,
+          `Nouvelles lignes: ${rows.length}`,
+          '',
+          '📊 Modifications détectées:',
+          ...differences,
+          '',
+          '✅ Cliquez sur "Confirmer et envoyer la mise à jour" pour continuer.',
+        ],
+      }]);
+
+      return { valid: true, isUpdate: true };
+
     } catch (error) {
       console.error('Erreur non attendue lors de la vérification:', error);
       setValidationErrors([{
@@ -219,25 +461,6 @@ const ImportExcel = () => {
       }]);
       return { valid: false, isUpdate: false };
     }
-  };
-  
-
-  const validatePeriod = (rows: ParsedRow[], selectedPeriod: number): boolean => {
-    const invalidPeriods = rows.filter(r => r.periode !== selectedPeriod);
-
-    if (invalidPeriods.length > 0) {
-      setValidationErrors([{
-        type: 'period',
-        message: 'Période incohérente détectée',
-        details: [
-          `La période sélectionnée est ${String(selectedPeriod).slice(0, 4)}-${String(selectedPeriod).slice(4)}`,
-          `Mais le fichier contient des données de période différente`,
-        ],
-      }]);
-      return false;
-    }
-
-    return true;
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -268,120 +491,97 @@ const ImportExcel = () => {
       setValidationErrors([]);
       setIsSuccess(false);
       setUpdateDetected(false);
+      setPendingUpdate(null);
     }
   };
 
-  const handleUpload = useCallback(async () => {
-    if (!file || !selectedPeriod || !companyUser?.company_id || !user) {
-      toast({
-        title: 'Erreur',
-        description: 'Veuillez sélectionner une période et un fichier',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setIsUploading(true);
-    setValidationErrors([]);
-    setIsSuccess(false);
-    setUpdateDetected(false);
+  // Fonction pour effectuer l'import
+  const performImport = async (rows: ParsedRow[], historyCheck: { valid: boolean; isUpdate: boolean }) => {
+    if (!file || !companyUser?.company_id || !user || !selectedPeriod) return;
+    
 
     try {
-      // Lire et parser le fichier Excel
-      const arrayBuffer = await file.arrayBuffer();
-      const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
-      let workbook: XLSX.WorkBook;
-      
-      if (fileExtension === '.csv') {
-        const text = new TextDecoder().decode(arrayBuffer);
-        workbook = XLSX.read(text, { type: 'string' });
-      } else {
-        workbook = XLSX.read(arrayBuffer, { 
-          type: 'array',
-          cellDates: true,
-          cellNF: false,
-          cellText: false
-        });
-      }
+      setIsUploading(true);
 
-      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const data = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1 });
-
-      // ÉTAPE 1 : Vérifier la structure
-      const structureValidation = validateStructure(worksheet);
-      if (!structureValidation.valid || !structureValidation.headers) {
-        setIsUploading(false);
-        return;
-      }
-
-      // ÉTAPE 2 : Valider les formats de champs
-      const formatValidation = validateFieldFormats(data, structureValidation.headers);
-      if (!formatValidation.valid || !formatValidation.rows) {
-        setIsUploading(false);
-        return;
-      }
-
-      const rows = formatValidation.rows;
-
-      // Vérifier que la période correspond
-      const periodValid = validatePeriod(rows, parseInt(selectedPeriod));
-      if (!periodValid) {
-        setIsUploading(false);
-        return;
-      }
-
-      // ÉTAPE 3 : Vérifier les doublons internes
-      const noDuplicatesInternal = checkInternalDuplicates(rows);
-      if (!noDuplicatesInternal) {
-        setIsUploading(false);
-        return;
-      }
-
-      // ÉTAPE 4 : Vérifier avec l'historique
-      const historyCheck = await checkHistoricalDuplicates(rows, parseInt(selectedPeriod));
-      if (!historyCheck.valid) {
-        setIsUploading(false);
-        return;
-      }
-
-      // Téléverser le fichier avec meilleure gestion d'erreurs
+      // Téléverser le fichier avec gestion d'erreurs détaillée
       const storagePath = `${companyUser.company_id}/${Date.now()}_${file.name}`;
       
-      try {
-        const { error: uploadError } = await supabase.storage
-          .from('excel-imports')
-          .upload(storagePath, file, {
-            cacheControl: '3600',
-            upsert: false,
-          });
+      console.log('🔄 Tentative de téléversement vers Supabase Storage:', {
+        bucket: 'excel-imports',
+        path: storagePath,
+        fileSize: `${(file.size / 1024).toFixed(2)} KB`,
+        fileType: file.type,
+        companyId: companyUser.company_id,
+      });
 
-        if (uploadError) {
-          console.error('Erreur détaillée du téléversement:', uploadError);
-          
-          // Messages d'erreur personnalisés selon le type d'erreur
-          let errorMessage = 'Erreur lors du téléversement du fichier';
-          
-          if (uploadError.message?.includes('Bucket not found')) {
-            errorMessage = 'Le bucket de stockage n\'existe pas. Contactez l\'administrateur.';
-          } else if (uploadError.message?.includes('Permission denied')) {
-            errorMessage = 'Permissions insuffisantes pour téléverser. Contactez l\'administrateur.';
-          } else if (uploadError.message?.includes('Payload too large')) {
-            errorMessage = 'Le fichier est trop volumineux.';
-          } else {
-            errorMessage = `${errorMessage}: ${uploadError.message || 'Erreur inconnue'}`;
-          }
-          
-          throw new Error(errorMessage);
+      const { error: uploadError, data: uploadData } = await supabase.storage
+        .from('excel-imports')
+        .upload(storagePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+        });
+
+      if (uploadError) {
+        console.error('❌ Erreur de téléversement:', uploadError);
+        
+        // Messages d'erreur personnalisés
+        let errorMessage = '';
+        let errorDetails: string[] = [];
+        
+        if (uploadError.message?.toLowerCase().includes('bucket')) {
+          errorMessage = '❌ Le bucket "excel-imports" n\'existe pas dans Supabase Storage';
+          errorDetails = [
+            '📝 Action requise dans Supabase Dashboard:',
+            '1. Allez dans Storage',
+            '2. Cliquez sur "New bucket"',
+            '3. Nom: excel-imports',
+            '4. Public: Non (privé)',
+            '5. Créez le bucket',
+            '6. Configurez les politiques RLS (Row Level Security)',
+          ];
+        } else if (uploadError.message?.toLowerCase().includes('permission') || uploadError.message?.toLowerCase().includes('policy')) {
+          errorMessage = '❌ Permissions insuffisantes - Politiques RLS manquantes';
+          errorDetails = [
+            '📝 Action requise dans Supabase Dashboard:',
+            '1. Allez dans Storage > excel-imports',
+            '2. Cliquez sur "Policies"',
+            '3. Ajoutez une politique pour INSERT',
+            '4. Exemple: authenticated users can upload',
+            `5. Vérifiez que l'utilisateur ${user.id} a les droits`,
+          ];
+        } else if (uploadError.message?.toLowerCase().includes('size') || uploadError.message?.toLowerCase().includes('large')) {
+          errorMessage = '❌ Fichier trop volumineux';
+          errorDetails = [
+            `Taille actuelle: ${(file.size / 1024 / 1024).toFixed(2)} MB`,
+            'Limite: 10 MB',
+            'Réduisez la taille du fichier ou contactez l\'administrateur',
+          ];
+        } else if (uploadError.message?.toLowerCase().includes('auth')) {
+          errorMessage = '❌ Session expirée ou non authentifié';
+          errorDetails = [
+            'Déconnectez-vous et reconnectez-vous',
+            'Puis réessayez l\'import',
+          ];
+        } else {
+          errorMessage = `❌ Erreur de téléversement: ${uploadError.message}`;
+          errorDetails = [
+            'Code d\'erreur: ' + (uploadError.statusCode || 'N/A'),
+            'Message: ' + uploadError.message,
+            'Contactez le support technique',
+          ];
         }
-      } catch (uploadError) {
-        console.error('Erreur réseau ou serveur lors du téléversement:', uploadError);
-        throw new Error(
-          uploadError instanceof Error 
-            ? uploadError.message 
-            : 'Erreur lors du téléversement du fichier'
-        );
-        }
-      
+        
+        setValidationErrors([{
+          type: 'upload',
+          message: errorMessage,
+          details: errorDetails,
+        }]);
+        
+        setIsUploading(false);
+        return;
+      }
+
+      console.log('✅ Téléversement réussi:', uploadData);
 
       // Créer l'enregistrement d'import
       const { data: importData, error: importError } = await supabase
@@ -404,7 +604,7 @@ const ImportExcel = () => {
         throw new Error(`Erreur lors de la création du dossier d'import: ${importError.message}`);
       }
 
-      // Insérer les lignes - SANS company_id
+      // Insérer les lignes
       const rowsToInsert = rows.map(row => ({
         file_import_id: importData.id,
         periode: row.periode,
@@ -468,9 +668,11 @@ const ImportExcel = () => {
       setIsSuccess(true);
       setFile(null);
       setSelectedPeriod('');
+      setPendingUpdate(null);
+      setUpdateDetected(false);
       
       toast({
-        title: historyCheck.isUpdate ? 'Mise à jour détectée — fichier transmis' : 'Succès',
+        title: historyCheck.isUpdate ? '✅ Mise à jour transmise avec succès' : '✅ Import réussi',
         description: `${rows.length} ligne(s) importée(s) avec succès`,
       });
 
@@ -488,7 +690,112 @@ const ImportExcel = () => {
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const handleUpload = useCallback(async () => {
+    if (!file || !selectedPeriod || !companyUser?.company_id || !user) {
+      toast({
+        title: 'Erreur',
+        description: 'Veuillez sélectionner une période et un fichier',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    setValidationErrors([]);
+    setIsSuccess(false);
+    setUpdateDetected(false);
+    setPendingUpdate(null);
+
+    try {
+      // Lire et parser le fichier Excel
+      const arrayBuffer = await file.arrayBuffer();
+      const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+      let workbook: XLSX.WorkBook;
+      
+      if (fileExtension === '.csv') {
+        const text = new TextDecoder().decode(arrayBuffer);
+        workbook = XLSX.read(text, { type: 'string' });
+      } else {
+        workbook = XLSX.read(arrayBuffer, { 
+          type: 'array',
+          cellDates: true,
+          cellNF: false,
+          cellText: false
+        });
+      }
+
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1 });
+
+      // ÉTAPE 1 : Vérifier la structure
+      const structureValidation = validateStructure(worksheet);
+      if (!structureValidation.valid || !structureValidation.headers) {
+        setIsUploading(false);
+        return;
+      }
+
+      // ÉTAPE 2 : Valider les formats de champs
+      const formatValidation = validateFieldFormats(data, structureValidation.headers);
+      if (!formatValidation.valid || !formatValidation.rows) {
+        setIsUploading(false);
+        return;
+      }
+
+      const rows = formatValidation.rows;
+
+      // Vérifier que la période correspond
+      const periodValid = validatePeriod(rows, parseInt(selectedPeriod));
+      if (!periodValid) {
+        setIsUploading(false);
+        return;
+      }
+
+      // ÉTAPE 3 : Vérifier les doublons internes
+      const noDuplicatesInternal = checkInternalDuplicates(rows);
+      if (!noDuplicatesInternal) {
+        setIsUploading(false);
+        return;
+      }
+
+      // ÉTAPE 4 : Vérifier avec l'historique
+      const historyCheck = await checkHistoricalDuplicates(rows, parseInt(selectedPeriod));
+      if (!historyCheck.valid) {
+        setIsUploading(false);
+        return;
+      }
+
+      // Si c'est une mise à jour, stocker les données et attendre confirmation
+      if (historyCheck.isUpdate) {
+        setPendingUpdate({ rows, historyCheck });
+        setIsUploading(false);
+        return; // Arrêter ici et attendre la confirmation de l'utilisateur
+      }
+
+      // Continuer avec l'import (nouveau fichier)
+      await performImport(rows, historyCheck);
+
+    } catch (error) {
+      console.error('Erreur lors de l\'import:', error);
+      setValidationErrors([{
+        type: 'upload',
+        message: error instanceof Error ? error.message : 'Une erreur est survenue lors de l\'import',
+      }]);
+      toast({
+        title: 'Erreur',
+        description: error instanceof Error ? error.message : 'Une erreur est survenue',
+        variant: 'destructive',
+      });
+      setIsUploading(false);
+    }
   }, [file, selectedPeriod, companyUser, user, toast]);
+
+  // Fonction pour confirmer et envoyer la mise à jour
+  const handleConfirmUpdate = useCallback(async () => {
+    if (!pendingUpdate) return;
+    await performImport(pendingUpdate.rows, pendingUpdate.historyCheck);
+  }, [pendingUpdate]);
 
   const downloadTemplate = () => {
     const template = [
@@ -571,7 +878,7 @@ const ImportExcel = () => {
             <Button 
               className="w-full" 
               onClick={handleUpload} 
-              disabled={!file || !selectedPeriod || isUploading}
+              disabled={!file || !selectedPeriod || isUploading || !!pendingUpdate}
             >
               {isUploading ? (
                 <>
@@ -591,35 +898,49 @@ const ImportExcel = () => {
         {/* Info and errors */}
         <div className="space-y-4">
           {validationErrors.length > 0 && (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Erreur de validation</AlertTitle>
+            <Alert variant={validationErrors[0].type === 'update_detected' ? 'default' : 'destructive'} className={validationErrors[0].type === 'update_detected' ? 'border-blue-500/50 bg-blue-500/5' : ''}>
+              {validationErrors[0].type === 'update_detected' ? (
+                <Info className="h-4 w-4 text-blue-500" />
+              ) : (
+                <AlertTriangle className="h-4 w-4" />
+              )}
+              <AlertTitle className={validationErrors[0].type === 'update_detected' ? 'text-blue-500' : ''}>
+                {validationErrors[0].type === 'update_detected' ? '🔄 Mise à jour détectée' : 'Erreur de validation'}
+              </AlertTitle>
               <AlertDescription>
                 {validationErrors.map((err, i) => (
                   <div key={i} className="mt-2">
                     <p className="font-medium">{err.message}</p>
                     {err.details && err.details.length > 0 && (
-                      <ul className="text-sm mt-1 list-disc list-inside max-h-40 overflow-y-auto">
+                      <ul className="text-sm mt-2 space-y-0.5">
                         {err.details.map((d, j) => (
-                          <li key={j}>{d}</li>
+                          <li key={j} className={d.startsWith('📊') || d.startsWith('✅') ? 'font-semibold mt-2' : ''}>
+                            {d}
+                          </li>
                         ))}
-                        {err.details.length > 20 && (
-                          <li className="text-muted-foreground">... et {err.details.length - 20} autre(s) erreur(s)</li>
-                        )}
                       </ul>
                     )}
                   </div>
                 ))}
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {updateDetected && !isSuccess && (
-            <Alert className="border-blue-500/50 bg-blue-500/5">
-              <Info className="h-4 w-4 text-blue-500" />
-              <AlertTitle className="text-blue-500">Mise à jour détectée</AlertTitle>
-              <AlertDescription className="text-muted-foreground">
-                Des modifications ont été détectées par rapport au dernier fichier. Le fichier sera accepté.
+                {validationErrors[0].type === 'update_detected' && pendingUpdate && (
+                  <Button 
+                    className="mt-4 w-full bg-blue-500 hover:bg-blue-600"
+                    onClick={handleConfirmUpdate}
+                    disabled={isUploading}
+                  >
+                    {isUploading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Envoi en cours...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2" />
+           Confirmer et envoyer la mise à jour
+                      </>
+                    )}
+                  </Button>
+                )}
               </AlertDescription>
             </Alert>
           )}
@@ -666,3 +987,5 @@ const ImportExcel = () => {
 };
 
 export default ImportExcel;
+
+    
