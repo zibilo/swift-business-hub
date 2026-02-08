@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { mockImports as initialImports, MockImport } from '@/lib/mockData';
 import { format } from 'date-fns';
-import { Download, CheckCircle2 } from 'lucide-react';
+import { BrandIcon } from '@/components/BrandIcons';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { toast } from 'sonner';
@@ -66,7 +66,7 @@ export default function AdminImports() {
           <p className="text-slate-500">Supervision de tous les imports de fichiers</p>
         </div>
         <Button onClick={handleExport} className="gap-2">
-          <Download className="h-4 w-4" />
+          <BrandIcon name="download" className="h-4 w-4" />
           Exporter logs
         </Button>
       </div>
@@ -113,7 +113,7 @@ export default function AdminImports() {
                   <div className="flex justify-end gap-2">
                     {!imp.is_read && (
                       <Button variant="ghost" size="sm" onClick={() => markAsRead(imp.id)}>
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                        <BrandIcon name="success" className="h-4 w-4 text-emerald-600" />
                       </Button>
                     )}
                     <button className="text-xs text-blue-600 font-medium hover:underline">Détails</button>

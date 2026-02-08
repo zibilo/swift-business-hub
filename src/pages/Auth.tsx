@@ -7,8 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Building2, Mail, Lock, ShieldCheck, ArrowRight, ChevronLeft } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { BrandIcon } from '@/components/BrandIcons';
+import { BrandLogo } from '@/components/BrandLogo';
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -99,10 +100,10 @@ export default function Auth() {
       <div className="w-full max-w-[420px] z-10">
         <div className="flex flex-col items-center mb-10">
           <div className="p-3 bg-white shadow-sm rounded-xl mb-4 border border-slate-200">
-            <Building2 className="h-8 w-8" style={{ color: colors.deepBlue }} />
+            <BrandLogo className="h-10 w-auto" />
           </div>
-          <h1 className="text-xl font-semibold tracking-tight text-slate-900">
-            Portail Institutionnel
+          <h1 className="text-xl font-semibold tracking-tight text-slate-900 mt-2">
+            Espace Entreprise
           </h1>
           <p className="text-sm text-slate-500 mt-1">Sécurisé par protocole AES-256</p>
         </div>
@@ -131,7 +132,7 @@ export default function Auth() {
                   <div className="space-y-2">
                     <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Identifiant Client</Label>
                     <div className="relative">
-                      <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                      <BrandIcon name="profile" className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                       <Input 
                         type="email"
                         className="pl-10 border-slate-200 focus:ring-blue-600" 
@@ -149,7 +150,7 @@ export default function Auth() {
                       <span className="text-xs text-blue-600 hover:underline cursor-pointer">Oublié ?</span>
                     </div>
                     <div className="relative">
-                      <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                      <BrandIcon name="logout" className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                       <Input 
                         type="password" 
                         className="pl-10 border-slate-200" 

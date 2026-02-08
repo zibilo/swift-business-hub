@@ -1,7 +1,7 @@
 
-import { Building2, Users, FileSpreadsheet, MessageSquare, LayoutDashboard, LogOut } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
+import { BrandIcon, BrandIconName } from '../BrandIcons';
 import {
   Sidebar,
   SidebarContent,
@@ -15,12 +15,12 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 
-const adminMenuItems = [
-  { title: 'Dashboard', url: '/admin', icon: LayoutDashboard },
-  { title: 'Entreprises', url: '/admin/companies', icon: Building2 },
-  { title: 'Utilisateurs', url: '/admin/users', icon: Users },
-  { title: 'Imports Flux', url: '/admin/imports', icon: FileSpreadsheet },
-  { title: 'Support Client', url: '/admin/support', icon: MessageSquare },
+const adminMenuItems: { title: string, url: string, icon: BrandIconName }[] = [
+  { title: 'Dashboard', url: '/admin', icon: 'dashboard' },
+  { title: 'Entreprises', url: '/admin/companies', icon: 'business' },
+  { title: 'Utilisateurs', url: '/admin/users', icon: 'profile' },
+  { title: 'Imports Flux', url: '/admin/imports', icon: 'import' },
+  { title: 'Support Client', url: '/admin/support', icon: 'support' },
 ];
 
 export function AdminSidebar() {
@@ -32,7 +32,7 @@ export function AdminSidebar() {
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b p-4 bg-slate-900 text-white">
         <div className="flex items-center gap-2">
-          <Building2 className="h-6 w-6 shrink-0" />
+          <BrandIcon name="business" className="h-6 w-6 shrink-0" color="white" />
           {!isCollapsed && (
             <span className="font-bold text-lg">Admin Panel</span>
           )}
@@ -55,7 +55,7 @@ export function AdminSidebar() {
                         }`
                       }
                     >
-                      <item.icon className="h-4 w-4 shrink-0" />
+                      <BrandIcon name={item.icon} className="h-4 w-4 shrink-0" />
                       {!isCollapsed && <span>{item.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>
@@ -64,7 +64,7 @@ export function AdminSidebar() {
 
               <SidebarMenuItem>
                 <SidebarMenuButton onClick={adminLogout} className="text-red-600 hover:text-red-700 hover:bg-red-50">
-                  <LogOut className="h-4 w-4 shrink-0" />
+                  <BrandIcon name="logout" className="h-4 w-4 shrink-0" color="currentColor" />
                   {!isCollapsed && <span>Déconnexion</span>}
                 </SidebarMenuButton>
               </SidebarMenuItem>

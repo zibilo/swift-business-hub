@@ -1,6 +1,6 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Building2, Users, FileSpreadsheet, MessageSquare, TrendingUp, AlertCircle, Zap } from 'lucide-react';
+import { BrandIcon } from '@/components/BrandIcons';
 import { mockCompanies, mockUsers, mockImports, mockSupportMessages } from '@/lib/mockData';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useAdminNotifications } from '@/hooks/useAdminNotifications';
@@ -9,10 +9,10 @@ import { Button } from '@/components/ui/button';
 export default function AdminDashboard() {
   const { notifyNewArrival } = useAdminNotifications();
   const stats = [
-    { title: 'Entreprises', value: mockCompanies.length, icon: Building2, color: 'text-blue-600' },
-    { title: 'Utilisateurs', value: mockUsers.length, icon: Users, color: 'text-green-600' },
-    { title: 'Imports Totaux', value: mockImports.length, icon: FileSpreadsheet, color: 'text-purple-600' },
-    { title: 'Messages Support', value: mockSupportMessages.length, icon: MessageSquare, color: 'text-orange-600' },
+    { title: 'Entreprises', value: mockCompanies.length, icon: 'business' as const, color: 'text-blue-600' },
+    { title: 'Utilisateurs', value: mockUsers.length, icon: 'profile' as const, color: 'text-green-600' },
+    { title: 'Imports Totaux', value: mockImports.length, icon: 'import' as const, color: 'text-purple-600' },
+    { title: 'Messages Support', value: mockSupportMessages.length, icon: 'support' as const, color: 'text-orange-600' },
   ];
 
   const data = [
@@ -33,7 +33,7 @@ export default function AdminDashboard() {
           className="gap-2 border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
           onClick={() => notifyNewArrival("Simulation_Fichier_2026.xlsx")}
         >
-          <Zap className="h-4 w-4" />
+          <BrandIcon name="alert" className="h-4 w-4" />
           Simuler Import (Alerte Sonore)
         </Button>
       </div>
@@ -43,7 +43,7 @@ export default function AdminDashboard() {
           <Card key={stat.title}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-              <stat.icon className={`h-4 w-4 ${stat.color}`} />
+              <BrandIcon name={stat.icon} className={`h-4 w-4 ${stat.color}`} />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stat.value}</div>
@@ -79,14 +79,14 @@ export default function AdminDashboard() {
           <CardContent>
             <div className="space-y-4">
               <div className="flex items-start gap-3 p-3 bg-amber-50 rounded-lg border border-amber-100">
-                <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
+                <BrandIcon name="alert" className="h-5 w-5 text-amber-600 mt-0.5" />
                 <div>
                   <p className="text-sm font-medium text-amber-900">3 Entreprises en attente</p>
                   <p className="text-xs text-amber-700">Vérification des documents SIRET requise.</p>
                 </div>
               </div>
               <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg border border-red-100">
-                <TrendingUp className="h-5 w-5 text-red-600 mt-0.5" />
+                <BrandIcon name="history" className="h-5 w-5 text-red-600 mt-0.5" />
                 <div>
                   <p className="text-sm font-medium text-red-900">Pic d'activité détecté</p>
                   <p className="text-xs text-red-700">Volume d'imports supérieur à la normale.</p>

@@ -3,9 +3,10 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { IonApp, IonRouterOutlet, setupIonicReact } from "@ionic/react";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { AppLayout } from "@/components/layout/AppLayout";
+import { AdaptiveLayout } from "@/components/layout/AdaptiveLayout";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import Company from "./pages/Company";
@@ -33,16 +34,17 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter>
-          <Routes>
+        <IonApp>
+          <BrowserRouter>
+            <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route
               path="/"
               element={
                 <ProtectedRoute>
-                  <AppLayout>
+                  <AdaptiveLayout>
                     <Dashboard />
-                  </AppLayout>
+                  </AdaptiveLayout>
                 </ProtectedRoute>
               }
             />
@@ -50,9 +52,9 @@ const App = () => (
               path="/profile"
               element={
                 <ProtectedRoute>
-                  <AppLayout>
+                  <AdaptiveLayout>
                     <Profile />
-                  </AppLayout>
+                  </AdaptiveLayout>
                 </ProtectedRoute>
               }
             />
@@ -60,9 +62,9 @@ const App = () => (
               path="/company"
               element={
                 <ProtectedRoute>
-                  <AppLayout>
+                  <AdaptiveLayout>
                     <Company />
-                  </AppLayout>
+                  </AdaptiveLayout>
                 </ProtectedRoute>
               }
             />
@@ -70,9 +72,9 @@ const App = () => (
               path="/import"
               element={
                 <ProtectedRoute>
-                  <AppLayout>
+                  <AdaptiveLayout>
                     <ImportExcel />
-                  </AppLayout>
+                  </AdaptiveLayout>
                 </ProtectedRoute>
               }
             />
@@ -80,9 +82,9 @@ const App = () => (
               path="/history"
               element={
                 <ProtectedRoute>
-                  <AppLayout>
+                  <AdaptiveLayout>
                     <ImportHistory />
-                  </AppLayout>
+                  </AdaptiveLayout>
                 </ProtectedRoute>
               }
             />
@@ -90,9 +92,9 @@ const App = () => (
               path="/support"
               element={
                 <ProtectedRoute>
-                  <AppLayout>
+                  <AdaptiveLayout>
                     <Support />
-                  </AppLayout>
+                  </AdaptiveLayout>
                 </ProtectedRoute>
               }
             />
@@ -117,9 +119,10 @@ const App = () => (
             />
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </IonApp>
       </TooltipProvider>
     </AuthProvider>
   </QueryClientProvider>

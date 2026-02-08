@@ -22,7 +22,7 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { mockUsers as initialUsers, MockUser } from '@/lib/mockData';
-import { UserPlus, Pencil, Trash2, Search } from 'lucide-react';
+import { BrandIcon } from '@/components/BrandIcons';
 import { toast } from 'sonner';
 
 export default function AdminUsers() {
@@ -97,7 +97,7 @@ export default function AdminUsers() {
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={handleOpenAdd} className="bg-slate-900 hover:bg-slate-800 gap-2">
-              <UserPlus className="h-4 w-4" />
+              <BrandIcon name="add" className="h-4 w-4" />
               Ajouter un utilisateur
             </Button>
           </DialogTrigger>
@@ -170,7 +170,7 @@ export default function AdminUsers() {
       <div className="bg-white rounded-lg border shadow-sm">
         <div className="p-4 border-b">
           <div className="relative max-w-sm">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <BrandIcon name="search" className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <Input
               placeholder="Rechercher un utilisateur..."
               className="pl-9"
@@ -204,10 +204,10 @@ export default function AdminUsers() {
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Button variant="ghost" size="sm" onClick={() => handleOpenEdit(user)}>
-                        <Pencil className="h-4 w-4" />
+                      <BrandIcon name="edit" className="h-4 w-4" />
                       </Button>
                       <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => handleDelete(user.id)}>
-                        <Trash2 className="h-4 w-4" />
+                      <BrandIcon name="delete" className="h-4 w-4" />
                       </Button>
                     </div>
                   </TableCell>

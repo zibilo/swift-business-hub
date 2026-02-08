@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { mockSupportMessages } from '@/lib/mockData';
 import { format } from 'date-fns';
-import { MessageSquare } from 'lucide-react';
+import { BrandIcon } from '@/components/BrandIcons';
 
 export default function AdminSupport() {
   return (
