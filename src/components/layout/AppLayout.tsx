@@ -1,49 +1,39 @@
-import { ReactNode } from 'react';
-import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
-import { AppSidebar } from './AppSidebar';
-import { useAuth } from '@/contexts/AuthContext';
-import { Button } from '@/components/ui/button';
-import { LogOut, Menu } from 'lucide-react';
+import { SidebarProvider } from "@/components/ui/sidebar";
+import { AppSidebar } from "./AppSidebar";
+import { MobileNav } from "./MobileNav";
+import { motion, AnimatePresence } from "framer-motion";
+import { useLocation } from "react-router-dom";
 
-interface AppLayoutProps {
-  children: ReactNode;
-}
-
-export function AppLayout({ children }: AppLayoutProps) {
-  const { profile, companyUser, signOut } = useAuth();
+export const AppLayout = ({ children }: { children: React.ReactNode }) => {
+  const location = useLocation();
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full">
-        <AppSidebar />
-        <div className="flex-1 flex flex-col">
-          {/* Header */}
-          <header className="h-14 border-b bg-background flex items-center justify-between px-4 sticky top-0 z-10">
-            <SidebarTrigger className="md:hidden">
-              <Menu className="h-5 w-5" />
-            </SidebarTrigger>
-            
-            <div className="flex-1" />
-            
-            <div className="flex items-center gap-3">
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium">{profile?.full_name || 'Utilisateur'}</p>
-                {companyUser?.company && (
-                  <p className="text-xs text-muted-foreground">{companyUser.company.name}</p>
-                )}
-              </div>
-              <Button variant="ghost" size="icon" onClick={signOut}>
-                <LogOut className="h-4 w-4" />
-              </Button>
-            </div>
-          </header>
-          
-          {/* Main content */}
-          <main className="flex-1 overflow-auto">
-            {children}
-          </main>
+      <div className="flex min-h-screen w-full bg-[#F8FAFC]">
+        {/* SIDEBAR : Uniquement visible sur Desktop (md:block) */}
+        <div className="hidden md:block h-screen sticky top-0">
+          <AppSidebar />
         </div>
+
+        {/* CONTENU PRINCIPAL */}
+        <main className="flex-1 w-full relative">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
+              className="pb-24 md:pb-8" // Padding pour ne pas cacher le contenu par la nav mobile
+            >
+              {children}
+            </motion.div>
+          </AnimatePresence>
+        </main>
+
+        {/* MOBILE NAV : Uniquement visible sur Mobile (md:hidden) */}
+        <MobileNav />
       </div>
     </SidebarProvider>
   );
-}
+};
