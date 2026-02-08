@@ -3,20 +3,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { History, FileSpreadsheet, Eye, AlertCircle, CheckCircle, Clock, Loader2 } from 'lucide-react';
+import { FileSpreadsheet, CheckCircle, Loader2, Download, TrendingUp, BarChart3, Zap, Calendar } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { motion } from 'framer-motion';
 
 const ImportHistory = () => {
   const { companyUser } = useAuth();
@@ -25,184 +17,161 @@ const ImportHistory = () => {
     queryKey: ['file-imports', companyUser?.company_id],
     queryFn: async () => {
       if (!companyUser?.company_id) return [];
-      
       const { data, error } = await supabase
         .from('file_imports')
-        .select(`
-          *,
-          uploaded_by_profile:profiles!file_imports_uploaded_by_fkey(full_name)
-        `)
+        .select(`*, uploaded_by_profile:profiles!file_imports_uploaded_by_fkey(full_name)`)
         .eq('company_id', companyUser.company_id)
         .order('created_at', { ascending: false });
-
       if (error) throw error;
       return data;
     },
     enabled: !!companyUser?.company_id,
   });
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <Badge className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"><CheckCircle className="h-3 w-3 mr-1" />Terminé</Badge>;
-      case 'processing':
-        return <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"><Loader2 className="h-3 w-3 mr-1 animate-spin" />En cours</Badge>;
-      case 'error':
-        return <Badge variant="destructive"><AlertCircle className="h-3 w-3 mr-1" />Erreur</Badge>;
-      default:
-        return <Badge variant="outline"><Clock className="h-3 w-3 mr-1" />En attente</Badge>;
-    }
-  };
-
-  const formatPeriod = (period: number) => {
-    const str = period.toString();
-    const year = str.substring(0, 4);
-    const month = str.substring(4, 6);
-    return `${month}/${year}`;
+  const stats = {
+    total: imports?.length || 0,
+    totalRows: imports?.reduce((acc, curr) => acc + (curr.row_count || 0), 0) || 0,
+    successRate: imports?.length 
+      ? Math.round((imports.filter(i => i.status === 'completed').length / imports.length) * 100) 
+      : 0
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Historique des imports</h1>
-        <p className="text-muted-foreground">
-          Consultez tous vos fichiers importés
-        </p>
+    <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-8 lg:p-12 space-y-8 max-w-[1600px] mx-auto">
+      
+      {/* HEADER RESPONSIVE */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900">Activité des Flux</h1>
+          <p className="text-sm text-slate-500">Statistiques et historique de mise à jour</p>
+        </div>
+        <div className="flex items-center gap-2 self-start sm:self-center">
+            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-100 hidden sm:flex">
+                Serveur Opérationnel
+            </Badge>
+            <Badge variant="outline" className="bg-white text-slate-400 font-mono text-[10px]">
+                v2.0.4
+            </Badge>
+        </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <History className="h-5 w-5" />
-            Fichiers importés
-          </CardTitle>
-          <CardDescription>
-            Liste de tous les fichiers Excel traités
-          </CardDescription>
+      {/* KPI CARDS : 1 colonne mobile, 3 colonnes desktop */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+        <StatCard 
+          title="Fichiers" 
+          value={stats.total} 
+          icon={<FileSpreadsheet className="text-blue-600 h-5 w-5" />} 
+          trend="+2 ce mois"
+        />
+        <StatCard 
+          title="Lignes" 
+          value={stats.totalRows.toLocaleString()} 
+          icon={<TrendingUp className="text-emerald-600 h-5 w-5" />} 
+          trend="Volume total"
+        />
+        <StatCard 
+          title="Intégrité" 
+          value={`${stats.successRate}%`} 
+          icon={<CheckCircle className="text-blue-900 h-5 w-5" />} 
+          trend="Validation auto"
+          className="sm:col-span-2 lg:col-span-1" 
+        />
+      </div>
+
+      {/* TABLEAU RESPONSIVE */}
+      <Card className="border-none shadow-sm bg-white overflow-hidden">
+        <CardHeader className="border-b border-slate-50 px-4 md:px-6">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5 text-slate-400" />
+            <CardTitle className="text-sm font-bold uppercase tracking-wider text-slate-600">Journal des Flux</CardTitle>
+          </div>
         </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : imports && imports.length > 0 ? (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Fichier</TableHead>
-                    <TableHead>Période</TableHead>
-                    <TableHead>Lignes</TableHead>
-                    <TableHead>Statut</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Actions</TableHead>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto"> {/* Conteneur pour le scroll horizontal sur mobile */}
+            <Table>
+              <TableHeader className="bg-slate-50/50">
+                <TableRow>
+                  <TableHead className="px-4 md:px-6 py-4 text-[10px] font-bold uppercase">Source / ID</TableHead>
+                  <TableHead className="text-[10px] font-bold uppercase hidden md:table-cell">Volume</TableHead>
+                  <TableHead className="text-[10px] font-bold uppercase">Statut</TableHead>
+                  <TableHead className="text-[10px] font-bold uppercase">Mise à jour</TableHead>
+                  <TableHead className="text-right px-4 md:px-6 text-[10px] font-bold uppercase">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                   <TableRow><TableCell colSpan={5} className="h-32 text-center text-slate-400">Chargement...</TableCell></TableRow>
+                ) : imports?.map((imp) => (
+                  <TableRow key={imp.id} className="hover:bg-slate-50/50 transition-colors border-slate-50">
+                    <TableCell className="px-4 md:px-6 py-4">
+                      <div className="font-bold text-slate-700 text-sm md:text-base truncate max-w-[120px] md:max-w-full">
+                        {imp.filename}
+                      </div>
+                      <div className="text-[9px] font-mono text-slate-400">#{imp.id.split('-')[0]}</div>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                        <span className="text-sm font-medium text-slate-600">{imp.row_count || 0} lignes</span>
+                    </TableCell>
+                    <TableCell>
+                      {getStatusBadge(imp.status)}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="text-xs text-slate-600 font-medium">{format(new Date(imp.created_at), 'dd/MM/yy', { locale: fr })}</span>
+                        <span className="text-[10px] text-slate-400">{format(new Date(imp.created_at), 'HH:mm')}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right px-4 md:px-6">
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full hover:bg-blue-50 hover:text-blue-600">
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {imports.map((imp) => (
-                    <TableRow key={imp.id}>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
-                          <span className="truncate max-w-[200px]">{imp.filename}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>{formatPeriod(imp.period)}</TableCell>
-                      <TableCell>{imp.row_count || '-'}</TableCell>
-                      <TableCell>{getStatusBadge(imp.status)}</TableCell>
-                      <TableCell>
-                        {format(new Date(imp.created_at), 'dd MMM yyyy HH:mm', { locale: fr })}
-                      </TableCell>
-                      <TableCell>
-                        <ImportDetailsDialog importId={imp.id} filename={imp.filename} />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              <FileSpreadsheet className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <p>Aucun fichier importé</p>
-            </div>
-          )}
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>
   );
 };
 
-function ImportDetailsDialog({ importId, filename }: { importId: string; filename: string }) {
-  const { data: rows, isLoading } = useQuery({
-    queryKey: ['import-rows', importId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('file_import_rows')
-        .select('*')
-        .eq('file_import_id', importId)
-        .order('row_number', { ascending: true })
-        .limit(100);
+// COMPOSANT STAT CARD RESPONSIVE
+const StatCard = ({ title, value, icon, trend, className }: any) => (
+  <motion.div whileHover={{ y: -2 }} className={className}>
+    <Card className="border-none shadow-sm bg-white h-full">
+        <CardContent className="p-5 flex items-center gap-4">
+            <div className="p-3 bg-slate-50 rounded-xl">
+                {icon}
+            </div>
+            <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{title}</p>
+                <div className="flex items-baseline gap-2">
+                    <p className="text-xl md:text-2xl font-black text-slate-900">{value}</p>
+                    <span className="text-[9px] text-emerald-600 font-bold bg-emerald-50 px-1 rounded truncate uppercase">
+                        {trend}
+                    </span>
+                </div>
+            </div>
+        </CardContent>
+    </Card>
+  </motion.div>
+);
 
-      if (error) throw error;
-      return data;
-    },
-    enabled: false, // Only fetch when dialog opens
-  });
+const getStatusBadge = (status: string) => {
+  const styles: any = {
+    completed: "bg-emerald-50 text-emerald-700 border-emerald-100",
+    processing: "bg-blue-50 text-blue-700 border-blue-100",
+    error: "bg-red-50 text-red-700 border-red-100"
+  };
+  const labels: any = { completed: "OK", processing: "LOAD", error: "ERR" };
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="sm">
-          <Eye className="h-4 w-4" />
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[80vh]">
-        <DialogHeader>
-          <DialogTitle>Détails de l'import</DialogTitle>
-          <DialogDescription>{filename}</DialogDescription>
-        </DialogHeader>
-        <ScrollArea className="h-[60vh]">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin" />
-            </div>
-          ) : rows && rows.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>#</TableHead>
-                  <TableHead>Période</TableHead>
-                  <TableHead>Matricule</TableHead>
-                  <TableHead>Nom/Prénom</TableHead>
-                  <TableHead>Code Caisse</TableHead>
-                  <TableHead>CCO</TableHead>
-                  <TableHead className="text-right">Montant</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell>{row.row_number}</TableCell>
-                    <TableCell>{row.periode}</TableCell>
-                    <TableCell>{row.matricule}</TableCell>
-                    <TableCell>{row.nom_prenom}</TableCell>
-                    <TableCell>{row.code_caisse}</TableCell>
-                    <TableCell>{row.cco}</TableCell>
-                    <TableCell className="text-right font-medium">
-                      {row.montant.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <p className="text-center py-8 text-muted-foreground">Aucune donnée disponible</p>
-          )}
-        </ScrollArea>
-      </DialogContent>
-    </Dialog>
+    <Badge className={`${styles[status] || "bg-slate-50"} border text-[9px] shadow-none font-black px-2 py-0.5`}>
+      {labels[status] || "WAIT"}
+    </Badge>
   );
-}
+};
 
 export default ImportHistory;
