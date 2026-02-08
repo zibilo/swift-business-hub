@@ -22,7 +22,22 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-android/
-ios/
-electron/
+# Capacitor native platforms
+# android/
+# ios/
+# electron/
+
+# Android build artifacts
+android/app/build
+android/.gradle
+android/local.properties
+android/captures
+android/.externalNativeBuild
+android/.cxx
+android/*.iml
+android/app/*.iml
+
+# iOS build artifacts
+ios/App/build
+ios/App/Pods
 *.log

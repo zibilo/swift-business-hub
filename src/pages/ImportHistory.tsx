@@ -3,12 +3,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { FileSpreadsheet, CheckCircle, Loader2, Download, TrendingUp, BarChart3, Zap, Calendar } from 'lucide-react';
+import { FileSpreadsheet, CheckCircle, Download, TrendingUp, BarChart3 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { motion } from 'framer-motion';
+import { useMemo } from 'react';
 
 const ImportHistory = () => {
   const { companyUser } = useAuth();
@@ -21,41 +22,40 @@ const ImportHistory = () => {
         .from('file_imports')
         .select(`*, uploaded_by_profile:profiles!file_imports_uploaded_by_fkey(full_name)`)
         .eq('company_id', companyUser.company_id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: true }); // Get oldest first for O(N) processing
 
       if (error) throw error;
 
-      // Identify updates (if there's a previous import for the same period)
-      const periodMap = new Map<number, boolean>();
+      // Identify updates in O(N) time
+      const periodMap = new Set<number>();
       const processedData = data.map((imp) => {
         const isUpdate = periodMap.has(imp.period);
         if (!isUpdate) {
-          periodMap.set(imp.period, true);
+          periodMap.add(imp.period);
         }
         return { ...imp, isUpdate };
       });
 
-      return processedData.reverse().map((imp, index, array) => {
-          // Re-process to mark all but the oldest as updates
-          const olderImportsForSamePeriod = array.slice(0, index).filter(i => i.period === imp.period);
-          return { ...imp, isUpdate: olderImportsForSamePeriod.length > 0 };
-      }).reverse();
+      // Return newest first for the UI
+      return processedData.reverse();
     },
     enabled: !!companyUser?.company_id,
   });
 
-  const stats = {
-    total: imports?.length || 0,
-    totalRows: imports?.reduce((acc, curr) => acc + (curr.row_count || 0), 0) || 0,
-    successRate: imports?.length 
-      ? Math.round((imports.filter(i => i.status === 'completed').length / imports.length) * 100) 
-      : 0
-  };
+  const stats = useMemo(() => {
+    if (!imports) return { total: 0, totalRows: 0, successRate: 0 };
+    return {
+      total: imports.length,
+      totalRows: imports.reduce((acc, curr) => acc + (curr.row_count || 0), 0),
+      successRate: imports.length
+        ? Math.round((imports.filter(i => i.status === 'completed').length / imports.length) * 100)
+        : 0
+    };
+  }, [imports]);
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-8 lg:p-12 space-y-8 max-w-[1600px] mx-auto">
       
-      {/* HEADER RESPONSIVE */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900">Activité des Flux</h1>
@@ -71,30 +71,28 @@ const ImportHistory = () => {
         </div>
       </div>
 
-      {/* KPI CARDS : 1 colonne mobile, 3 colonnes desktop */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
         <StatCard 
           title="Fichiers" 
           value={stats.total} 
           icon={<FileSpreadsheet className="text-blue-600 h-5 w-5" />} 
-          trend="+2 ce mois"
+          trend="Volume cumulé"
         />
         <StatCard 
           title="Lignes" 
           value={stats.totalRows.toLocaleString()} 
           icon={<TrendingUp className="text-emerald-600 h-5 w-5" />} 
-          trend="Volume total"
+          trend="Données traitées"
         />
         <StatCard 
           title="Intégrité" 
           value={`${stats.successRate}%`} 
-          icon={<CheckCircle className="text-blue-900 h-5 w-5" />} 
+          icon={<CheckCircle className="text-[#004080] h-5 w-5" />}
           trend="Validation auto"
           className="sm:col-span-2 lg:col-span-1" 
         />
       </div>
 
-      {/* TABLEAU RESPONSIVE */}
       <Card className="border-none shadow-sm bg-white overflow-hidden">
         <CardHeader className="border-b border-slate-50 px-4 md:px-6">
           <div className="flex items-center gap-2">
@@ -103,31 +101,35 @@ const ImportHistory = () => {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto"> {/* Conteneur pour le scroll horizontal sur mobile */}
+          <div className="overflow-x-auto">
             <Table>
               <TableHeader className="bg-slate-50/50">
                 <TableRow>
-                  <TableHead className="px-4 md:px-6 py-4 text-[10px] font-bold uppercase">Source / ID</TableHead>
-                  <TableHead className="text-[10px] font-bold uppercase hidden md:table-cell">Volume</TableHead>
-                  <TableHead className="text-[10px] font-bold uppercase">Type</TableHead>
-                  <TableHead className="text-[10px] font-bold uppercase">Statut</TableHead>
-                  <TableHead className="text-[10px] font-bold uppercase">Date</TableHead>
-                  <TableHead className="text-right px-4 md:px-6 text-[10px] font-bold uppercase">Action</TableHead>
+                  <TableHead className="px-4 md:px-6 py-4 text-[10px] font-bold uppercase text-slate-500">Source / ID</TableHead>
+                  <TableHead className="text-[10px] font-bold uppercase text-slate-500 hidden md:table-cell">Période</TableHead>
+                  <TableHead className="text-[10px] font-bold uppercase text-slate-500">Type</TableHead>
+                  <TableHead className="text-[10px] font-bold uppercase text-slate-500">Statut</TableHead>
+                  <TableHead className="text-[10px] font-bold uppercase text-slate-500">Date d'import</TableHead>
+                  <TableHead className="text-right px-4 md:px-6 text-[10px] font-bold uppercase text-slate-500">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                   <TableRow><TableCell colSpan={5} className="h-32 text-center text-slate-400">Chargement...</TableCell></TableRow>
+                   <TableRow><TableCell colSpan={6} className="h-32 text-center text-slate-400">Chargement de l'historique...</TableCell></TableRow>
+                ) : imports?.length === 0 ? (
+                  <TableRow><TableCell colSpan={6} className="h-32 text-center text-slate-400">Aucun import trouvé.</TableCell></TableRow>
                 ) : imports?.map((imp) => (
                   <TableRow key={imp.id} className="hover:bg-slate-50/50 transition-colors border-slate-50">
                     <TableCell className="px-4 md:px-6 py-4">
                       <div className="font-bold text-slate-700 text-sm md:text-base truncate max-w-[120px] md:max-w-full">
                         {imp.filename}
                       </div>
-                      <div className="text-[9px] font-mono text-slate-400">#{imp.id.split('-')[0]}</div>
+                      <div className="text-[9px] font-mono text-slate-400">#{imp.id.split('-')[0]} • {imp.row_count} lignes</div>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
-                        <span className="text-sm font-medium text-slate-600">{imp.row_count || 0} lignes</span>
+                        <span className="text-sm font-medium text-slate-600">
+                          {imp.period ? `${String(imp.period).slice(4)}/${String(imp.period).slice(0, 4)}` : 'N/A'}
+                        </span>
                     </TableCell>
                     <TableCell>
                       {imp.isUpdate ? (
@@ -161,7 +163,6 @@ const ImportHistory = () => {
   );
 };
 
-// COMPOSANT STAT CARD RESPONSIVE
 interface StatCardProps {
   title: string;
   value: string | number;

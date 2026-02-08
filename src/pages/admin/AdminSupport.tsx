@@ -42,7 +42,7 @@ export default function AdminSupport() {
                 <TableCell className="text-xs text-slate-500">{format(new Date(msg.created_at), 'dd/MM HH:mm')}</TableCell>
                 <TableCell className="text-right">
                   <Button size="sm" variant="ghost" className="gap-2">
-                    <MessageSquare className="h-4 w-4" />
+                    <BrandIcon name="message" className="h-4 w-4" />
                     Répondre
                   </Button>
                 </TableCell>
