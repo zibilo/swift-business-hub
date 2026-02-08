@@ -1,4 +1,4 @@
-package app.lovable.54a0e050bb514ae5ae82423aa26f9a6b;
+package com.mucodec.espaceentreprise;
 
 import com.getcapacitor.BridgeActivity;
 
