@@ -73,36 +73,54 @@
      }
    };
  
-   useEffect(() => {
-     // Set up auth state listener FIRST
-     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-       async (event, session) => {
-         setSession(session);
-         setUser(session?.user ?? null);
-         
-         if (session?.user) {
-           // Defer profile fetch to avoid blocking
-           setTimeout(() => fetchProfile(session.user.id), 0);
-         } else {
-           setProfile(null);
-           setCompanyUser(null);
-         }
-         setLoading(false);
-       }
-     );
- 
-     // THEN check for existing session
-     supabase.auth.getSession().then(({ data: { session } }) => {
-       setSession(session);
-       setUser(session?.user ?? null);
-       if (session?.user) {
-         fetchProfile(session.user.id);
-       }
-       setLoading(false);
-     });
- 
-     return () => subscription.unsubscribe();
-   }, []);
+  useEffect(() => {
+    let isMounted = true;
+
+    // Listener for ONGOING auth changes (does NOT control loading)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (!isMounted) return;
+        
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          // Fire and forget for ongoing changes
+          fetchProfile(session.user.id);
+        } else {
+          setProfile(null);
+          setCompanyUser(null);
+        }
+      }
+    );
+
+    // INITIAL load (controls loading state)
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!isMounted) return;
+
+        setSession(session);
+        setUser(session?.user ?? null);
+
+        // Fetch profile BEFORE setting loading to false
+        if (session?.user) {
+          await fetchProfile(session.user.id);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    initializeAuth();
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
  
    const signUp = async (email: string, password: string, fullName: string) => {
      const { error } = await supabase.auth.signUp({
