@@ -15,6 +15,16 @@ import Support from "./pages/Support";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
+// Admin Pages
+import { AdminAuthProvider } from "@/contexts/AdminAuthContext";
+import { AdminLayout } from "@/components/layout/AdminLayout";
+import AdminLogin from "./pages/admin/AdminLogin";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminCompanies from "./pages/admin/AdminCompanies";
+import AdminUsers from "./pages/admin/AdminUsers";
+import AdminImports from "./pages/admin/AdminImports";
+import AdminSupport from "./pages/admin/AdminSupport";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -86,6 +96,26 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+
+            {/* Admin Routes */}
+            <Route
+              path="/admin/*"
+              element={
+                <AdminAuthProvider>
+                  <Routes>
+                    <Route path="login" element={<AdminLogin />} />
+                    <Route element={<AdminLayout />}>
+                      <Route index element={<AdminDashboard />} />
+                      <Route path="companies" element={<AdminCompanies />} />
+                      <Route path="users" element={<AdminUsers />} />
+                      <Route path="imports" element={<AdminImports />} />
+                      <Route path="support" element={<AdminSupport />} />
+                    </Route>
+                  </Routes>
+                </AdminAuthProvider>
+              }
+            />
+
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
