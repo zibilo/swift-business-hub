@@ -21,6 +21,9 @@ export interface MockImport {
   company_name: string;
   file_name: string;
   status: 'completed' | 'pending' | 'failed';
+  period: string;
+  row_count: number;
+  is_update: boolean;
   created_at: string;
 }
 
@@ -48,10 +51,10 @@ export const mockUsers: MockUser[] = [
 ];
 
 export const mockImports: MockImport[] = [
-  { id: '1', company_name: 'Tech Solutions SAS', file_name: 'q1_results.xlsx', status: 'completed', created_at: '2025-01-20T16:00:00Z' },
-  { id: '2', company_name: 'Global Logistics SARL', file_name: 'inventory_feb.csv', status: 'completed', created_at: '2025-02-05T10:30:00Z' },
-  { id: '3', company_name: 'Tech Solutions SAS', file_name: 'payroll_jan.xlsx', status: 'pending', created_at: '2025-02-12T09:15:00Z' },
-  { id: '4', company_name: 'Green Energy Corp', file_name: 'energy_report.xlsx', status: 'failed', created_at: '2025-02-11T15:45:00Z' },
+  { id: '1', company_name: 'Tech Solutions SAS', file_name: 'q1_results.xlsx', status: 'completed', period: '202501', row_count: 150, is_update: false, created_at: '2025-01-20T16:00:00Z' },
+  { id: '2', company_name: 'Global Logistics SARL', file_name: 'inventory_feb.csv', status: 'completed', period: '202502', row_count: 85, is_update: false, created_at: '2025-02-05T10:30:00Z' },
+  { id: '3', company_name: 'Tech Solutions SAS', file_name: 'payroll_jan.xlsx', status: 'pending', period: '202501', row_count: 155, is_update: true, created_at: '2025-02-12T09:15:00Z' },
+  { id: '4', company_name: 'Green Energy Corp', file_name: 'energy_report.xlsx', status: 'failed', period: '202502', row_count: 42, is_update: false, created_at: '2025-02-11T15:45:00Z' },
 ];
 
 export const mockSupportMessages: MockSupportMessage[] = [

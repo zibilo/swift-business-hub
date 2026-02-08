@@ -405,10 +405,6 @@ const ImportExcel = () => {
       const existingMatricules = new Set(existingRows.map(r => r.matricule));
       const newRows = sortedCurrentRows.filter(r => !existingMatricules.has(r.matricule));
 
-      // Vérifier les lignes supprimées
-      const currentMatricules = new Set(sortedCurrentRows.map(r => r.matricule));
-      const deletedRows = existingRows.filter(r => !currentMatricules.has(r.matricule));
-
       // Vérifier les lignes modifiées
       const modifiedRows = sortedCurrentRows.filter(currentRow => {
         const currentSig = createSignature({
@@ -424,9 +420,6 @@ const ImportExcel = () => {
 
       if (newRows.length > 0) {
         differences.push(`➕ ${newRows.length} nouvelle(s) ligne(s) ajoutée(s)`);
-      }
-      if (deletedRows.length > 0) {
-        differences.push(`➖ ${deletedRows.length} ligne(s) supprimée(s)`);
       }
       if (modifiedRows.length > 0) {
         differences.push(`✏️ ${modifiedRows.length} ligne(s) modifiée(s)`);

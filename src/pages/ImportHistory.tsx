@@ -22,8 +22,24 @@ const ImportHistory = () => {
         .select(`*, uploaded_by_profile:profiles!file_imports_uploaded_by_fkey(full_name)`)
         .eq('company_id', companyUser.company_id)
         .order('created_at', { ascending: false });
+
       if (error) throw error;
-      return data;
+
+      // Identify updates (if there's a previous import for the same period)
+      const periodMap = new Map<number, boolean>();
+      const processedData = data.map((imp) => {
+        const isUpdate = periodMap.has(imp.period);
+        if (!isUpdate) {
+          periodMap.set(imp.period, true);
+        }
+        return { ...imp, isUpdate };
+      });
+
+      return processedData.reverse().map((imp, index, array) => {
+          // Re-process to mark all but the oldest as updates
+          const olderImportsForSamePeriod = array.slice(0, index).filter(i => i.period === imp.period);
+          return { ...imp, isUpdate: olderImportsForSamePeriod.length > 0 };
+      }).reverse();
     },
     enabled: !!companyUser?.company_id,
   });
@@ -93,8 +109,9 @@ const ImportHistory = () => {
                 <TableRow>
                   <TableHead className="px-4 md:px-6 py-4 text-[10px] font-bold uppercase">Source / ID</TableHead>
                   <TableHead className="text-[10px] font-bold uppercase hidden md:table-cell">Volume</TableHead>
+                  <TableHead className="text-[10px] font-bold uppercase">Type</TableHead>
                   <TableHead className="text-[10px] font-bold uppercase">Statut</TableHead>
-                  <TableHead className="text-[10px] font-bold uppercase">Mise à jour</TableHead>
+                  <TableHead className="text-[10px] font-bold uppercase">Date</TableHead>
                   <TableHead className="text-right px-4 md:px-6 text-[10px] font-bold uppercase">Action</TableHead>
                 </TableRow>
               </TableHeader>
@@ -111,6 +128,13 @@ const ImportHistory = () => {
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
                         <span className="text-sm font-medium text-slate-600">{imp.row_count || 0} lignes</span>
+                    </TableCell>
+                    <TableCell>
+                      {imp.isUpdate ? (
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-100 text-[9px] font-bold">MISE À JOUR</Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-100 text-[9px] font-bold">INITIAL</Badge>
+                      )}
                     </TableCell>
                     <TableCell>
                       {getStatusBadge(imp.status)}
@@ -138,7 +162,15 @@ const ImportHistory = () => {
 };
 
 // COMPOSANT STAT CARD RESPONSIVE
-const StatCard = ({ title, value, icon, trend, className }: any) => (
+interface StatCardProps {
+  title: string;
+  value: string | number;
+  icon: React.ReactNode;
+  trend: string;
+  className?: string;
+}
+
+const StatCard = ({ title, value, icon, trend, className }: StatCardProps) => (
   <motion.div whileHover={{ y: -2 }} className={className}>
     <Card className="border-none shadow-sm bg-white h-full">
         <CardContent className="p-5 flex items-center gap-4">
@@ -160,12 +192,12 @@ const StatCard = ({ title, value, icon, trend, className }: any) => (
 );
 
 const getStatusBadge = (status: string) => {
-  const styles: any = {
+  const styles: Record<string, string> = {
     completed: "bg-emerald-50 text-emerald-700 border-emerald-100",
     processing: "bg-blue-50 text-blue-700 border-blue-100",
     error: "bg-red-50 text-red-700 border-red-100"
   };
-  const labels: any = { completed: "OK", processing: "LOAD", error: "ERR" };
+  const labels: Record<string, string> = { completed: "OK", processing: "LOAD", error: "ERR" };
 
   return (
     <Badge className={`${styles[status] || "bg-slate-50"} border text-[9px] shadow-none font-black px-2 py-0.5`}>
