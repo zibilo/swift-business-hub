@@ -117,11 +117,7 @@ const Company = () => {
                   value={company?.contact_phone} 
                   icon={<Phone className="h-3 w-3" />} 
                 />
-                <InfoBlock 
-                  label="Présence Web" 
-                  value={company?.website || "n/a"} 
-                  icon={<Globe className="h-3 w-3" />} 
-                />
+                {/* Website field removed - not in database schema */}
               </div>
             </div>
           </CardContent>
