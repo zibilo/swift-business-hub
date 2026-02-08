@@ -41,19 +41,23 @@ jobs:
           ./gradlew assembleRelease
 
       - name: Sign Android Release
+        # Use a condition to check if secrets are set, preventing failure if they are missing
+        if: ${{ secrets.ANDROID_SIGNING_KEY != '' && secrets.ANDROID_KEY_ALIAS != '' }}
         uses: r0adkll/sign-android-release@v1
         id: sign_app
         with:
           releaseDirectory: android/app/build/outputs/apk/release
           signingKeyBase64: ${{ secrets.ANDROID_SIGNING_KEY }}
-          alias: ${{ secrets.ANDROID_ALIAS }}
-          keyStorePassword: ${{ secrets.ANDROID_KEY_STORE_PASSWORD }}
+          alias: ${{ secrets.ANDROID_KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
         env:
           BUILD_TOOLS_VERSION: "34.0.0"
 
-      - name: Upload Signed APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: ${{ steps.sign_app.outputs.signedReleaseFile }}
+          path: |
+            android/app/build/outputs/apk/release/*.apk
+            !android/app/build/outputs/apk/release/*-unsigned-aligned.apk
