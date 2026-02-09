@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -43,6 +43,16 @@ const ImportExcel = () => {
   // Constantes de validation
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
   const VALID_EXTENSIONS = ['.xlsx', '.xls', '.xlsm', '.xlsb', '.csv', '.ods'];
+
+  // Nettoyer les états après un succès
+  useEffect(() => {
+    if (isSuccess) {
+      const timer = setTimeout(() => {
+        setIsSuccess(false);
+      }, 5000); // Masquer le message de succès après 5 secondes
+      return () => clearTimeout(timer);
+    }
+  }, [isSuccess]);
 
   // Generate period options (current month + 11 previous months)
   const periodOptions = Array.from({ length: 12 }, (_, i) => {
@@ -498,11 +508,16 @@ const ImportExcel = () => {
         return;
       }
 
-      setFile(selectedFile);
+      // Réinitialisation complète des états dans le bon ordre
       setValidationErrors([]);
       setIsSuccess(false);
       setUpdateDetected(false);
       setPendingUpdate(null);
+      
+      // Ajouter un petit délai pour permettre à React de finir le rendu
+      setTimeout(() => {
+        setFile(selectedFile);
+      }, 0);
     }
   };
 
@@ -675,16 +690,22 @@ const ImportExcel = () => {
         console.error('Erreur lors de la mise à jour du statut:', updateError);
       }
 
-      setIsSuccess(true);
-      setFile(null);
-      setSelectedPeriod('');
-      setPendingUpdate(null);
-      setUpdateDetected(false);
+      // Mettre à jour les états dans le bon ordre avec un délai
+      setIsUploading(false);
       
-      toast({
-        title: historyCheck.isUpdate ? '✅ Mise à jour transmise avec succès' : '✅ Import réussi',
-        description: `${rows.length} ligne(s) importée(s) avec succès`,
-      });
+      // Attendre que React finisse le rendu avant de mettre à jour les autres états
+      setTimeout(() => {
+        setIsSuccess(true);
+        setFile(null);
+        setSelectedPeriod('');
+        setPendingUpdate(null);
+        setUpdateDetected(false);
+        
+        toast({
+          title: historyCheck.isUpdate ? '✅ Mise à jour transmise avec succès' : '✅ Import réussi',
+          description: `${rows.length} ligne(s) importée(s) avec succès`,
+        });
+      }, 100);
 
     } catch (error) {
       console.error('Erreur lors de l\'import:', error);
@@ -697,7 +718,6 @@ const ImportExcel = () => {
         description: error instanceof Error ? error.message : 'Une erreur est survenue',
         variant: 'destructive',
       });
-    } finally {
       setIsUploading(false);
     }
   };
@@ -712,6 +732,7 @@ const ImportExcel = () => {
       return;
     }
 
+    // Réinitialiser tous les états en une seule fois
     setIsUploading(true);
     setValidationErrors([]);
     setIsSuccess(false);
@@ -908,7 +929,11 @@ const ImportExcel = () => {
         {/* Info and errors */}
         <div className="space-y-4">
           {validationErrors.length > 0 && (
-            <Alert variant={validationErrors[0].type === 'update_detected' ? 'default' : 'destructive'} className={validationErrors[0].type === 'update_detected' ? 'border-blue-500/50 bg-blue-500/5' : ''}>
+            <Alert 
+              key="validation-alert"
+              variant={validationErrors[0].type === 'update_detected' ? 'default' : 'destructive'} 
+              className={validationErrors[0].type === 'update_detected' ? 'border-blue-500/50 bg-blue-500/5' : ''}
+            >
               {validationErrors[0].type === 'update_detected' ? (
                 <Info className="h-4 w-4 text-blue-500" />
               ) : (
@@ -919,12 +944,12 @@ const ImportExcel = () => {
               </AlertTitle>
               <AlertDescription>
                 {validationErrors.map((err, i) => (
-                  <div key={i} className="mt-2">
+                  <div key={`error-${err.type}-${i}`} className="mt-2">
                     <p className="font-medium">{err.message}</p>
                     {err.details && err.details.length > 0 && (
                       <ul className="text-sm mt-2 space-y-0.5">
                         {err.details.map((d, j) => (
-                          <li key={j} className={d.startsWith('📊') || d.startsWith('✅') ? 'font-semibold mt-2' : ''}>
+                          <li key={`detail-${i}-${j}-${d.substring(0, 20)}`} className={d.startsWith('📊') || d.startsWith('✅') ? 'font-semibold mt-2' : ''}>
                             {d}
                           </li>
                         ))}
@@ -934,6 +959,7 @@ const ImportExcel = () => {
                 ))}
                 {validationErrors[0].type === 'update_detected' && pendingUpdate && (
                   <Button 
+                    key="confirm-update-button"
                     className="mt-4 w-full bg-blue-500 hover:bg-blue-600"
                     onClick={handleConfirmUpdate}
                     disabled={isUploading}
@@ -956,7 +982,7 @@ const ImportExcel = () => {
           )}
 
           {isSuccess && (
-            <Alert className="border-primary/50 bg-primary/5">
+            <Alert key="success-alert" className="border-primary/50 bg-primary/5">
               <CheckCircle className="h-4 w-4 text-primary" />
               <AlertTitle className="text-primary">Import réussi</AlertTitle>
               <AlertDescription className="text-muted-foreground">
