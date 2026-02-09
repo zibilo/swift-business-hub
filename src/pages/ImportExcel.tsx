@@ -58,7 +58,7 @@ const ImportExcel = () => {
 
   // ÉTAPE 1 : Vérifier la structure du fichier
   const validateStructure = (worksheet: XLSX.WorkSheet): { valid: boolean; headers?: string[] } => {
-    const expectedColumns = ['PÉRIODE', 'MATRICULE', 'NOM', 'PRENOM', 'CODE CAISSE', 'CCO', 'MONTANT'];
+    const expectedColumns = ['PERIODE', 'MATRICULE', 'NOM', 'PRENOM', 'CODE CAISSE', 'CCO', 'MONTANT'];
     const data = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1 });
     
     if (data.length < 2) {
