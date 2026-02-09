@@ -91,11 +91,11 @@ export default function Auth() {
           <motion.div 
             whileHover={{ scale: 1.05 }}
             className="p-4 bg-white shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1)] rounded-2xl mb-5 border border-white"
-          >
+          > 
             <Building2 className="h-9 w-9 text-slate-900" />
           </motion.div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 italic">
-            NEXUS <span className="font-light text-slate-500 not-italic uppercase text-lg tracking-[0.2em] ml-1">Enterprise</span>
+            Mecu fichier <span className="font-light text-slate-500 not-italic uppercase text-lg tracking-[0.2em] ml-1">Enterprise</span>
           </h1>
           <div className="flex items-center gap-2 mt-2">
             <div className="h-[1px] w-8 bg-slate-300" />
@@ -190,7 +190,7 @@ export default function Auth() {
                         <Label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Nom Complet</Label>
                         <Input 
                           className="h-12 border-slate-200/60 bg-white/50 rounded-xl" 
-                          placeholder="Jean Dupont"
+                          placeholder="Ngami mporo"
                           value={signupName}
                           onChange={(e) => setSignupName(e.target.value)}
                         />
@@ -200,7 +200,7 @@ export default function Auth() {
                         <Input 
                           type="email" 
                           className="h-12 border-slate-200/60 bg-white/50 rounded-xl" 
-                          placeholder="j.dupont@entreprise.com"
+                          placeholder="Ngami@anthony.com"
                           value={signupEmail}
                           onChange={(e) => setSignupEmail(e.target.value)}
                         />
@@ -250,7 +250,7 @@ export default function Auth() {
             <Building2 className="h-5 w-5" />
           </div>
           <p className="text-[10px] text-slate-400 text-center uppercase tracking-[0.3em] font-medium leading-loose">
-            Infrastucture de Grade Bancaire <br /> © 2026 Nexus Systems International
+            Infrastucture de Grade Bancaire <br /> © 2026 Muco fichier Systems International
           </p>
         </div>
       </motion.div>
