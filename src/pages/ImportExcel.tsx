@@ -89,7 +89,7 @@ const ImportExcel = () => {
 
   // ÉTAPE 2 : Valider les formats des champs (STRICTEMENT)
   const validateFieldFormats = (data: unknown[][], headers: string[]): { valid: boolean; rows?: ParsedRow[] } => {
-    const periodeIndex = headers.findIndex(h => h === 'PÉRIODE');
+    const periodeIndex = headers.findIndex(h => h === 'PERIODE');
     const matriculeIndex = headers.findIndex(h => h === 'MATRICULE');
     const nomIndex = headers.findIndex(h => h === 'NOM');
     const prenomIndex = headers.findIndex(h => h === 'PRENOM');
@@ -122,7 +122,7 @@ const ImportExcel = () => {
 
       // VALIDATION STRICTE : PÉRIODE (exactement 6 chiffres, format YYYYMM)
       if (!/^\d{6}$/.test(periode)) {
-        formatErrors.push(`Ligne ${rowNum} : PÉRIODE invalide "${periode}" (format requis : YYYYMM, exactement 6 chiffres)`);
+        formatErrors.push(`Ligne ${rowNum} : PERIODE invalide "${periode}" (format requis : YYYYMM, exactement 6 chiffres)`);
         hasError = true;
       }
 
