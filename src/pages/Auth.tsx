@@ -95,7 +95,7 @@ export default function Auth() {
             <Building2 className="h-9 w-9 text-slate-900" />
           </motion.div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 italic">
-            Mecu fichier <span className="font-light text-slate-500 not-italic uppercase text-lg tracking-[0.2em] ml-1">Enterprise</span>
+            Muco fichier <span className="font-light text-slate-500 not-italic uppercase text-lg tracking-[0.2em] ml-1"> Crée un compte pour votre Enterprise</span>
           </h1>
           <div className="flex items-center gap-2 mt-2">
             <div className="h-[1px] w-8 bg-slate-300" />
