@@ -58,7 +58,7 @@ const ImportExcel = () => {
 
   // ÉTAPE 1 : Vérifier la structure du fichier
   const validateStructure = (worksheet: XLSX.WorkSheet): { valid: boolean; headers?: string[] } => {
-    const expectedColumns = ['PERIODE', 'MATRICULE', 'NOM', 'PRENOM', 'CODE CAISSE', 'CCO', 'MONTANT'];
+    const expectedColumns = ['MATRICULE', 'NOM', 'PRENOM', 'CODE CAISSE', 'CCO', 'MONTANT'];
     const data = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1 });
     
     if (data.length < 2) {
@@ -72,7 +72,18 @@ const ImportExcel = () => {
     const headerRow = data[0] as unknown[];
     const headers = headerRow.map(h => String(h ?? '').toUpperCase().trim());
     
-    // Vérifier que toutes les colonnes attendues sont présentes
+    // Vérifier que PERIODE existe (avec ou sans accent)
+    const hasPeriode = headers.includes('PERIODE') || headers.includes('PÉRIODE');
+    if (!hasPeriode) {
+      setValidationErrors([{
+        type: 'structure',
+        message: 'Structure du fichier incorrecte',
+        details: ['Colonne manquante : PERIODE (ou PÉRIODE)'],
+      }]);
+      return { valid: false };
+    }
+
+    // Vérifier que toutes les autres colonnes attendues sont présentes
     const missingColumns = expectedColumns.filter(col => !headers.includes(col));
 
     if (missingColumns.length > 0) {
@@ -89,7 +100,8 @@ const ImportExcel = () => {
 
   // ÉTAPE 2 : Valider les formats des champs (STRICTEMENT)
   const validateFieldFormats = (data: unknown[][], headers: string[]): { valid: boolean; rows?: ParsedRow[] } => {
-    const periodeIndex = headers.findIndex(h => h === 'PERIODE');
+    // Chercher l'index de PERIODE (avec ou sans accent)
+    const periodeIndex = headers.findIndex(h => h === 'PERIODE' || h === 'PÉRIODE');
     const matriculeIndex = headers.findIndex(h => h === 'MATRICULE');
     const nomIndex = headers.findIndex(h => h === 'NOM');
     const prenomIndex = headers.findIndex(h => h === 'PRENOM');
@@ -138,9 +150,9 @@ const ImportExcel = () => {
         hasError = true;
       }
 
-      // VALIDATION STRICTE : CCO (exactement 6 chiffres)
-      if (!/^\d{6}$/.test(cco)) {
-        formatErrors.push(`Ligne ${rowNum} : CCO invalide "${cco}" (requis : exactement 6 chiffres)`);
+      // VALIDATION STRICTE : CCO (1 à 7 chiffres maximum)
+      if (!/^\d{1,7}$/.test(cco)) {
+        formatErrors.push(`Ligne ${rowNum} : CCO invalide "${cco}" (requis : 1 à 7 chiffres)`);
         hasError = true;
       }
 
@@ -964,7 +976,7 @@ const ImportExcel = () => {
                 <p><strong>NOM</strong> - Nom du salarié</p>
                 <p><strong>PRENOM</strong> - Prénom du salarié</p>
                 <p><strong>CODE CAISSE</strong> - 3 chiffres (ex: 249)</p>
-                <p><strong>CCO</strong> - 6 chiffres (ex: 023467)</p>
+                <p><strong>CCO</strong> - 1 à 7 chiffres (ex: 023467)</p>
                 <p><strong>MONTANT</strong> - Nombre entier (ex: 10987777)</p>
               </div>
               <div className="pt-2 border-t">
