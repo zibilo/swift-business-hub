@@ -16,12 +16,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'npm' # Optimise la vitesse des builds suivants
 
       - name: Setup Java JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'zulu'
+          cache: 'gradle' # Optimise le téléchargement de Gradle
 
       - name: Install Dependencies
         run: npm install --legacy-peer-deps
@@ -29,19 +31,20 @@ jobs:
       - name: Build Web App
         run: npm run build
 
-      - name: Add Android Platform
-        run: npx cap add android || true
-
       - name: Sync Capacitor Android
         run: npx cap sync android
+
+      - name: Make Gradlew Executable
+        run: chmod +x android/gradlew # CRUCIAL : Correction du "Permission denied"
 
       - name: Build Android Release
         run: |
           cd android
           ./gradlew assembleRelease
+        # Note: Cela va générer un fichier app-release-unsigned.apk 
+        # car nous n'avons pas défini de signingConfig dans build.gradle
 
       - name: Sign Android Release
-        # Only attempt to sign if the signing key secret is provided
         if: ${{ secrets.ANDROID_SIGNING_KEY != '' }}
         uses: r0adkll/sign-android-release@v1
         id: sign_app
@@ -54,10 +57,15 @@ jobs:
         env:
           BUILD_TOOLS_VERSION: "34.0.0"
 
-      - name: Upload APK Artifacts
+      - name: Upload Signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
-          path: |
-            android/app/build/outputs/apk/release/*.apk
-            !android/app/build/outputs/apk/release/*-unsigned-aligned.apk
+          name: app-release-signed
+          path: ${{ steps.sign_app.outputs.signedReleaseFile }} # Utilise le fichier signé spécifiquement
+
+      - name: Upload Unsigned APK (Fallback)
+        if: ${{ secrets.ANDROID_SIGNING_KEY == '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-unsigned
+          path: android/app/build/outputs/apk/release/*.apk
