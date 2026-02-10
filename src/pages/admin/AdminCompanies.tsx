@@ -76,4 +76,4 @@ export default function AdminCompanies() {
       </div>
     </div>
   );
-          }
+                  }
