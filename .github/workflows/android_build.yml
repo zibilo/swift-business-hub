@@ -8,6 +8,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # On définit une variable d'environnement ici pour tester la présence du secret
+    env:
+      ANDROID_SIGNING_KEY: ${{ secrets.ANDROID_SIGNING_KEY }}
+
     steps:
       - name: Checkout Source
         uses: actions/checkout@v4
@@ -16,14 +20,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm' # Optimise la vitesse des builds suivants
+          cache: 'npm'
 
       - name: Setup Java JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'zulu'
-          cache: 'gradle' # Optimise le téléchargement de Gradle
+          cache: 'gradle'
 
       - name: Install Dependencies
         run: npm install --legacy-peer-deps
@@ -35,17 +39,16 @@ jobs:
         run: npx cap sync android
 
       - name: Make Gradlew Executable
-        run: chmod +x android/gradlew # CRUCIAL : Correction du "Permission denied"
+        run: chmod +x android/gradlew
 
       - name: Build Android Release
         run: |
           cd android
           ./gradlew assembleRelease
-        # Note: Cela va générer un fichier app-release-unsigned.apk 
-        # car nous n'avons pas défini de signingConfig dans build.gradle
 
       - name: Sign Android Release
-        if: ${{ secrets.ANDROID_SIGNING_KEY != '' }}
+        # On utilise env.ANDROID_SIGNING_KEY au lieu de secrets.ANDROID_SIGNING_KEY
+        if: env.ANDROID_SIGNING_KEY != ''
         uses: r0adkll/sign-android-release@v1
         id: sign_app
         with:
@@ -58,13 +61,14 @@ jobs:
           BUILD_TOOLS_VERSION: "34.0.0"
 
       - name: Upload Signed APK
+        if: env.ANDROID_SIGNING_KEY != ''
         uses: actions/upload-artifact@v4
         with:
           name: app-release-signed
-          path: ${{ steps.sign_app.outputs.signedReleaseFile }} # Utilise le fichier signé spécifiquement
+          path: ${{ steps.sign_app.outputs.signedReleaseFile }}
 
       - name: Upload Unsigned APK (Fallback)
-        if: ${{ secrets.ANDROID_SIGNING_KEY == '' }}
+        if: env.ANDROID_SIGNING_KEY == ''
         uses: actions/upload-artifact@v4
         with:
           name: app-release-unsigned
