@@ -1,23 +1,24 @@
-android {
-    // ... reste de la config
+apply plugin: 'com.android.application'
 
-    // AJOUTER CE BLOC AVANT buildTypes
-    signingConfigs {
-        release {
-            if (System.getenv("ANDROID_KEYSTORE_PATH") != null) {
-                storeFile file(System.getenv("ANDROID_KEYSTORE_PATH"))
-                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
-                keyAlias System.getenv("ANDROID_KEY_ALIAS")
-                keyPassword System.getenv("ANDROID_KEY_PASSWORD")
-            }
-        }
+android {
+    namespace "com.mucodec.espaceentreprise"
+    compileSdk rootProject.ext.compileSdkVersion
+    
+    defaultConfig {
+        applicationId "com.mucodec.espaceentreprise"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Le reste du fichier ne change pas...
     buildTypes {
         release {
             minifyEnabled false
-            signingConfig signingConfigs.release // AJOUTER CETTE LIGNE
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
 }
+// ...
