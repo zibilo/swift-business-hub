@@ -8,7 +8,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # On définit une variable d'environnement ici pour tester la présence du secret
     env:
       ANDROID_SIGNING_KEY: ${{ secrets.ANDROID_SIGNING_KEY }}
 
@@ -33,7 +32,11 @@ jobs:
         run: npm install --legacy-peer-deps
 
       - name: Build Web App
+        # CORRECTION : On injecte les secrets Supabase ici pour que le JS ne plante pas
         run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
 
       - name: Sync Capacitor Android
         run: npx cap sync android
@@ -47,7 +50,6 @@ jobs:
           ./gradlew assembleRelease
 
       - name: Sign Android Release
-        # On utilise env.ANDROID_SIGNING_KEY au lieu de secrets.ANDROID_SIGNING_KEY
         if: env.ANDROID_SIGNING_KEY != ''
         uses: r0adkll/sign-android-release@v1
         id: sign_app
