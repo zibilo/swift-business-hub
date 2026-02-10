@@ -32,7 +32,7 @@ jobs:
         run: npm install --legacy-peer-deps
 
       - name: Build Web App
-        # CORRECTION : On injecte les secrets Supabase ici pour que le JS ne plante pas
+        # Injection des clés Supabase au moment du build
         run: npm run build
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
