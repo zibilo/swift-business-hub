@@ -3,34 +3,27 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader } from '@/components/ui/card';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Building2, Mail, Lock, ShieldCheck, ArrowRight, ChevronLeft, Fingerprint } from 'lucide-react';
+import { Loader2, Mail, Lock, ShieldCheck, ArrowRight, ChevronLeft, Fingerprint, Building2, UserPlus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { cn } from '@/lib/utils';
 
 export default function Auth() {
   const navigate = useNavigate();
   const { user, loading: authLoading, signIn, signUp } = useAuth();
   
-  const [activeTab, setActiveTab] = useState('login');
-  const [step, setStep] = useState(1);
+  const [loginStep, setLoginStep] = useState(1);
+  const [signupStep, setSignupStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Form states
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [signupName, setSignupName] = useState('');
-  const [signupEmail, setSignupEmail] = useState('');
-  const [signupPassword, setSignupPassword] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
 
   useEffect(() => {
-    if (!authLoading && user) {
-      navigate('/', { replace: true });
-    }
+    if (!authLoading && user) navigate('/', { replace: true });
   }, [user, authLoading, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -38,10 +31,10 @@ export default function Auth() {
     setError(null);
     setIsLoading(true);
     try {
-      const { error } = await signIn(loginEmail, loginPassword);
-      if (error) setError('Identifiants invalides ou compte non vérifié.');
+      const { error } = await signIn(email, password);
+      if (error) setError('Identifiants incorrects');
     } catch (err) {
-      setError('Une erreur de connexion est survenue.');
+      setError('Erreur serveur');
     } finally {
       setIsLoading(false);
     }
@@ -52,208 +45,166 @@ export default function Auth() {
     setError(null);
     setIsLoading(true);
     try {
-      const { error } = await signUp(signupEmail, signupPassword, signupName);
+      const { error } = await signUp(email, password, name);
       if (error) setError(error.message);
-      else alert('Inscription réussie !');
     } catch (err) {
-      setError('Erreur lors de la création du compte.');
+      setError('Erreur de création');
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }}>
-          <Loader2 className="h-10 w-10 text-primary" />
-        </motion.div>
-      </div>
-    );
-  }
+  if (authLoading) return (
+    <div className="min-h-screen flex items-center justify-center bg-[#00204E]">
+      <Loader2 className="h-10 w-10 animate-spin text-white" />
+    </div>
+  );
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[#f8fafc] relative overflow-hidden font-sans antialiased">
+    <div className="min-h-screen flex flex-col items-center justify-center font-sans antialiased overflow-hidden bg-[#00204E]">
       
-      {/* Éléments de design d'arrière-plan */}
-      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
-        <div className="absolute -top-[10%] -right-[5%] w-[500px] h-[500px] bg-blue-100/40 rounded-full blur-[120px]" />
-        <div className="absolute bottom-[0%] -left-[5%] w-[400px] h-[400px] bg-slate-200/50 rounded-full blur-[100px]" />
+      {/* Background Decor (Windows Luminous Style) */}
+      <div className="fixed inset-0 z-0">
+        <div className="absolute top-[-20%] left-[-10%] w-[70%] h-[70%] rounded-full bg-[#D32F2F]/20 blur-[120px]" />
+        <div className="absolute bottom-[-20%] right-[-10%] w-[70%] h-[70%] rounded-full bg-[#0056D2]/30 blur-[120px]" />
       </div>
 
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-[440px] z-10 px-4"
+        className="w-full max-w-[420px] z-10 px-6"
       >
-        {/* Logo & Header */}
-        <div className="flex flex-col items-center mb-8">
-          <motion.div 
-            whileHover={{ scale: 1.05 }}
-            className="p-4 bg-white shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1)] rounded-2xl mb-5 border border-white"
-          > 
-            <Building2 className="h-9 w-9 text-slate-900" />
-          </motion.div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 italic">
-            Muco fichier <span className="font-light text-slate-500 not-italic uppercase text-lg tracking-[0.2em] ml-1"> Crée un compte pour votre Enterprise</span>
-          </h1>
-          <div className="flex items-center gap-2 mt-2">
-            <div className="h-[1px] w-8 bg-slate-300" />
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Accès Sécurisé</p>
-            <div className="h-[1px] w-8 bg-slate-300" />
+        {/* Header Institutionnel */}
+        <div className="flex flex-col items-center mb-8 text-center">
+          <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-2xl mb-4 border-b-4 border-[#D32F2F]">
+            <Building2 className="h-9 w-9 text-[#00204E]" />
           </div>
+          <h1 className="text-2xl font-black text-white tracking-tight uppercase">Portail Sécurisé</h1>
+          <div className="h-1 w-12 bg-[#D32F2F] mt-2 rounded-full" />
         </div>
 
-        <Card className="border-none shadow-[0_20px_50px_rgba(0,0,0,0.06)] bg-white/70 backdrop-blur-xl ring-1 ring-white/50">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <CardHeader className="pb-4">
-              <TabsList className="grid w-full grid-cols-2 bg-slate-200/50 rounded-xl p-1.5 h-12">
-                <TabsTrigger value="login" className="rounded-lg text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:shadow-sm">Connexion</TabsTrigger>
-                <TabsTrigger value="signup" className="rounded-lg text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:shadow-sm">Inscription</TabsTrigger>
-              </TabsList>
-            </CardHeader>
+        <Card className="border border-white/20 bg-white/10 backdrop-blur-xl shadow-2xl rounded-[2rem] overflow-hidden">
+          <Tabs defaultValue="login" className="w-full" onValueChange={() => { setLoginStep(1); setSignupStep(1); setError(null); }}>
+            <TabsList className="grid w-full grid-cols-2 bg-black/20 p-1.5 rounded-none">
+              <TabsTrigger value="login" className="rounded-full text-white data-[state=active]:bg-white data-[state=active]:text-[#00204E] font-bold">Connexion</TabsTrigger>
+              <TabsTrigger value="signup" className="rounded-full text-white data-[state=active]:bg-white data-[state=active]:text-[#D32F2F] font-bold">Créer un compte</TabsTrigger>
+            </TabsList>
 
-            <AnimatePresence mode="wait">
+            <div className="p-8">
               {error && (
-                <motion.div 
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="px-6 mb-2"
-                >
-                  <Alert variant="destructive" className="bg-red-50 border-red-100 text-red-700 py-3">
-                    <AlertDescription className="text-xs font-medium">{error}</AlertDescription>
-                  </Alert>
-                </motion.div>
+                <Alert className="mb-6 bg-[#D32F2F] border-none text-white py-2 rounded-xl animate-pulse">
+                  <AlertDescription className="text-xs text-center font-bold italic">{error}</AlertDescription>
+                </Alert>
               )}
-            </AnimatePresence>
 
-            {activeTab === 'login' ? (
-              <motion.form 
-                key="login-form"
-                initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-                onSubmit={handleLogin}
-              >
-                <CardContent className="space-y-4 pt-2">
-                  <div className="space-y-1.5">
-                    <Label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 ml-1">Email Professionnel</Label>
-                    <div className="relative group">
-                      <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-slate-900" />
-                      <Input 
-                        type="email" 
-                        className="pl-10 h-12 border-slate-200/60 bg-white/50 focus:bg-white transition-all rounded-xl"
-                        placeholder="nom@entreprise.fr"
-                        value={loginEmail}
-                        onChange={(e) => setLoginEmail(e.target.value)}
-                        required
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between items-center">
-                      <Label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 ml-1">Mot de passe</Label>
-                      <button type="button" className="text-[11px] font-bold text-blue-600 hover:text-blue-700 transition-colors">Oublié ?</button>
-                    </div>
-                    <div className="relative group">
-                      <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400 transition-colors group-focus-within:text-slate-900" />
-                      <Input 
-                        type="password" 
-                        className="pl-10 h-12 border-slate-200/60 bg-white/50 focus:bg-white transition-all rounded-xl"
-                        placeholder="••••••••"
-                        value={loginPassword}
-                        onChange={(e) => setLoginPassword(e.target.value)}
-                        required
-                      />
-                    </div>
-                  </div>
-                </CardContent>
-                <CardFooter className="pt-2 pb-8">
-                  <Button 
-                    type="submit"
-                    className="w-full h-12 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-xl transition-all shadow-lg shadow-slate-200 active:scale-[0.98]"
-                    disabled={isLoading}
-                  >
-                    {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Se connecter'}
-                  </Button>
-                </CardFooter>
-              </motion.form>
-            ) : (
-              <motion.div 
-                key="signup-form"
-                initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }}
-                className="px-6 pb-8"
-              >
+              {/* CONNEXION EN 2 ÉTAPES */}
+              <TabsContent value="login" className="mt-0 focus-visible:ring-0">
                 <AnimatePresence mode="wait">
-                  {step === 1 ? (
-                    <motion.div key="s1" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4 pt-2">
-                      <div className="space-y-1.5">
-                        <Label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Nom Complet</Label>
+                  {loginStep === 1 ? (
+                    <motion.div key="l1" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-6">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-white/60 ml-4 uppercase tracking-widest">Identifiant</label>
                         <Input 
-                          className="h-12 border-slate-200/60 bg-white/50 rounded-xl" 
-                          placeholder="Ngami mporo"
-                          value={signupName}
-                          onChange={(e) => setSignupName(e.target.value)}
+                          className="h-14 bg-white/10 border-white/20 text-white placeholder:text-white/30 rounded-full px-6 focus:border-[#0056D2] transition-all" 
+                          placeholder="votre@email.fr"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
                         />
                       </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Email Direct</Label>
-                        <Input 
-                          type="email" 
-                          className="h-12 border-slate-200/60 bg-white/50 rounded-xl" 
-                          placeholder="Ngami@anthony.com"
-                          value={signupEmail}
-                          onChange={(e) => setSignupEmail(e.target.value)}
-                        />
-                      </div>
-                      <Button onClick={() => setStep(2)} className="w-full h-12 bg-blue-600 hover:bg-blue-700 rounded-xl" disabled={!signupName || !signupEmail}>
-                        Étape suivante <ArrowRight className="ml-2 h-4 w-4" />
+                      <Button 
+                        onClick={() => email.includes('@') && setLoginStep(2)}
+                        className="w-full h-14 bg-[#0056D2] hover:bg-[#0044A8] text-white rounded-full font-bold shadow-lg shadow-blue-900/40"
+                      >
+                        Suivant <ArrowRight className="ml-2 h-4 w-4" />
                       </Button>
                     </motion.div>
                   ) : (
-                    <motion.form key="s2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} onSubmit={handleSignup} className="space-y-4 pt-2">
-                      <button onClick={() => setStep(1)} className="flex items-center text-[11px] font-bold text-slate-400 hover:text-slate-600 mb-2">
-                        <ChevronLeft className="h-3 w-3 mr-1" /> RETOUR
+                    <motion.form key="l2" onSubmit={handleLogin} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
+                      <button type="button" onClick={() => setLoginStep(1)} className="flex items-center text-xs font-bold text-[#0056D2] hover:text-white transition-colors">
+                        <ChevronLeft className="h-4 w-4" /> MODIFIER L'EMAIL
                       </button>
-                      <div className="space-y-1.5">
-                        <Label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Mot de passe de sécurité</Label>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-white/60 ml-4 uppercase tracking-widest">Mot de passe</label>
                         <Input 
-                          type="password" 
-                          className="h-12 border-slate-200/60 bg-white/50 rounded-xl"
+                          type="password"
+                          autoFocus
+                          className="h-14 bg-white/10 border-white/20 text-white placeholder:text-white/30 rounded-full px-6 focus:border-[#D32F2F] transition-all" 
                           placeholder="••••••••"
-                          value={signupPassword}
-                          onChange={(e) => setSignupPassword(e.target.value)}
-                          required
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
                         />
                       </div>
-                      <div className="p-4 bg-slate-900 rounded-xl flex items-start gap-3 shadow-inner">
-                        <ShieldCheck className="h-5 w-5 text-blue-400 mt-0.5" />
-                        <p className="text-[11px] text-slate-300 leading-relaxed">
-                          Votre compte sera protégé par un chiffrement de bout en bout et conforme aux normes RGPD.
-                        </p>
-                      </div>
-                      <Button type="submit" className="w-full h-12 bg-blue-600 hover:bg-blue-700 rounded-xl shadow-lg shadow-blue-200" disabled={isLoading}>
-                        {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Finaliser mon inscription'}
+                      <Button 
+                        type="submit"
+                        disabled={isLoading}
+                        className="w-full h-14 bg-[#D32F2F] hover:bg-[#B22727] text-white rounded-full font-bold shadow-lg shadow-red-900/40"
+                      >
+                        {isLoading ? <Loader2 className="animate-spin" /> : "Accéder à l'espace"}
                       </Button>
                     </motion.form>
                   )}
                 </AnimatePresence>
-              </motion.div>
-            )}
+              </TabsContent>
+
+              {/* INSCRIPTION PAR ÉTAPES */}
+              <TabsContent value="signup" className="mt-0 focus-visible:ring-0">
+                <AnimatePresence mode="wait">
+                  {signupStep === 1 ? (
+                    <motion.div key="s1" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="space-y-5">
+                      <Input 
+                        className="h-14 bg-white/10 border-white/20 text-white placeholder:text-white/30 rounded-full px-6" 
+                        placeholder="Nom complet"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                      />
+                      <Input 
+                        className="h-14 bg-white/10 border-white/20 text-white placeholder:text-white/30 rounded-full px-6" 
+                        placeholder="E-mail professionnel"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                      />
+                      <Button 
+                        onClick={() => setSignupStep(2)} 
+                        className="w-full h-14 bg-white text-[#00204E] hover:bg-white/90 rounded-full font-bold"
+                      >
+                        Étape suivante
+                      </Button>
+                    </motion.div>
+                  ) : (
+                    <motion.form key="s2" onSubmit={handleSignup} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
+                      <Input 
+                        type="password"
+                        className="h-14 bg-white/10 border-white/20 text-white placeholder:text-white/30 rounded-full px-6" 
+                        placeholder="Définir un mot de passe"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                      />
+                      <div className="p-4 bg-white/5 rounded-2xl border border-white/10 flex gap-3 items-center">
+                        <ShieldCheck className="h-5 w-5 text-[#D32F2F]" />
+                        <p className="text-[10px] text-white/70 leading-tight">
+                          Protection des données garantie par protocole AES-256.
+                        </p>
+                      </div>
+                      {/* BOUTON S'INSCRIRE FINAL */}
+                      <Button 
+                        type="submit" 
+                        disabled={isLoading} 
+                        className="w-full h-14 bg-gradient-to-r from-[#D32F2F] to-[#FF4B4B] text-white rounded-full font-black text-lg shadow-xl"
+                      >
+                        {isLoading ? <Loader2 className="animate-spin" /> : <><UserPlus className="mr-2 h-5 w-5" /> S'INSCRIRE MAINTENANT</>}
+                      </Button>
+                    </motion.form>
+                  )}
+                </AnimatePresence>
+              </TabsContent>
+            </div>
           </Tabs>
         </Card>
 
-        {/* Footer info */}
-        <div className="mt-10 flex flex-col items-center gap-4">
-          <div className="flex items-center gap-6 opacity-40">
-            <ShieldCheck className="h-5 w-5" />
-            <Fingerprint className="h-5 w-5" />
-            <Building2 className="h-5 w-5" />
-          </div>
-          <p className="text-[10px] text-slate-400 text-center uppercase tracking-[0.3em] font-medium leading-loose">
-            Infrastucture de Grade Bancaire <br /> © 2026 Muco fichier Systems International
-          </p>
-        </div>
+        <p className="mt-10 text-center text-[10px] text-white/40 font-bold uppercase tracking-[0.4em]">
+          Mucodec.com
+        </p>
       </motion.div>
     </div>
   );
-                }
+    }
