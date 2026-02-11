@@ -85,10 +85,10 @@ export const WelcomeCover = ({ onFinished }: WelcomeCoverProps) => {
               className="text-center"
             >
               <h2 className="text-2xl font-black text-slate-900 leading-tight">
-                Envoyer vos fiche de paie <span className="text-[#e30613]"> 📁</span>
+                 <span className="text-[#e30613]"> 📁</span>
               </h2>
               <p className="text-slate-500 text-sm mt-3 font-medium">
-                 <br/>  où que vous soyez.
+                 <br/>  
               </p>
             </motion.div>
 
