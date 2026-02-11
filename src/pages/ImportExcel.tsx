@@ -1,13 +1,15 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { FileSpreadsheet, Upload, AlertTriangle, CheckCircle, Download, Loader2, Info, RefreshCw } from 'lucide-react';
+import { FileSpreadsheet, Upload, AlertTriangle, CheckCircle, Download, Loader2, Info, RefreshCw, X, Clock, TrendingUp } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import * as XLSX from 'xlsx';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
 
 interface ValidationError {
   type: 'structure' | 'format' | 'duplicate_internal' | 'duplicate_file' | 'period' | 'update_detected' | 'upload';
@@ -26,6 +28,23 @@ interface ParsedRow {
   row_number: number;
 }
 
+interface UploadProgress {
+  stage: 'parsing' | 'validating' | 'uploading' | 'saving' | 'complete';
+  progress: number;
+  message: string;
+  totalRows?: number;
+  processedRows?: number;
+}
+
+interface OngoingImport {
+  id: string;
+  filename: string;
+  period: number;
+  progress: number;
+  stage: string;
+  created_at: string;
+}
+
 const ImportExcel = () => {
   const { companyUser, user } = useAuth();
   const { toast } = useToast();
@@ -39,17 +58,65 @@ const ImportExcel = () => {
     rows: ParsedRow[];
     historyCheck: { valid: boolean; isUpdate: boolean };
   } | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress>({
+    stage: 'parsing',
+    progress: 0,
+    message: 'En attente...',
+  });
+  const [ongoingImports, setOngoingImports] = useState<OngoingImport[]>([]);
+  const [showOngoingImports, setShowOngoingImports] = useState(false);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Constantes de validation
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
   const VALID_EXTENSIONS = ['.xlsx', '.xls', '.xlsm', '.xlsb', '.csv', '.ods'];
+
+  // Vérifier les importations en cours au chargement
+  useEffect(() => {
+    checkOngoingImports();
+    
+    // Vérifier périodiquement les importations en cours
+    const interval = setInterval(checkOngoingImports, 5000);
+    return () => clearInterval(interval);
+  }, [companyUser]);
+
+  const checkOngoingImports = async () => {
+    if (!companyUser?.company_id) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('file_imports')
+        .select('id, filename, period, upload_progress, upload_stage, created_at')
+        .eq('company_id', companyUser.company_id)
+        .eq('status', 'uploading')
+        .order('created_at', { ascending: false });
+
+      if (!error && data && data.length > 0) {
+        const ongoing = data.map(item => ({
+          id: item.id,
+          filename: item.filename,
+          period: item.period,
+          progress: item.upload_progress || 0,
+          stage: item.upload_stage || 'uploading',
+          created_at: item.created_at,
+        }));
+        setOngoingImports(ongoing);
+        setShowOngoingImports(true);
+      } else {
+        setOngoingImports([]);
+      }
+    } catch (error) {
+      console.error('Erreur lors de la vérification des imports en cours:', error);
+    }
+  };
 
   // Nettoyer les états après un succès
   useEffect(() => {
     if (isSuccess) {
       const timer = setTimeout(() => {
         setIsSuccess(false);
-      }, 5000); // Masquer le message de succès après 5 secondes
+      }, 5000);
       return () => clearTimeout(timer);
     }
   }, [isSuccess]);
@@ -66,8 +133,14 @@ const ImportExcel = () => {
     };
   });
 
+  const updateProgress = (stage: UploadProgress['stage'], progress: number, message: string, totalRows?: number, processedRows?: number) => {
+    setUploadProgress({ stage, progress, message, totalRows, processedRows });
+  };
+
   // ÉTAPE 1 : Vérifier la structure du fichier
   const validateStructure = (worksheet: XLSX.WorkSheet): { valid: boolean; headers?: string[] } => {
+    updateProgress('validating', 10, 'Vérification de la structure...');
+    
     const expectedColumns = ['MATRICULE', 'NOM', 'PRENOM', 'CODE CAISSE', 'CCO', 'MONTANT'];
     const data = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1 });
     
@@ -82,7 +155,6 @@ const ImportExcel = () => {
     const headerRow = data[0] as unknown[];
     const headers = headerRow.map(h => String(h ?? '').toUpperCase().trim());
     
-    // Vérifier que PERIODE existe (avec ou sans accent)
     const hasPeriode = headers.includes('PERIODE') || headers.includes('PÉRIODE');
     if (!hasPeriode) {
       setValidationErrors([{
@@ -93,7 +165,6 @@ const ImportExcel = () => {
       return { valid: false };
     }
 
-    // Vérifier que toutes les autres colonnes attendues sont présentes
     const missingColumns = expectedColumns.filter(col => !headers.includes(col));
 
     if (missingColumns.length > 0) {
@@ -108,9 +179,10 @@ const ImportExcel = () => {
     return { valid: true, headers };
   };
 
-  // ÉTAPE 2 : Valider les formats des champs (STRICTEMENT)
+  // ÉTAPE 2 : Valider les formats des champs
   const validateFieldFormats = (data: unknown[][], headers: string[]): { valid: boolean; rows?: ParsedRow[] } => {
-    // Chercher l'index de PERIODE (avec ou sans accent)
+    updateProgress('validating', 25, 'Validation des formats...');
+    
     const periodeIndex = headers.findIndex(h => h === 'PERIODE' || h === 'PÉRIODE');
     const matriculeIndex = headers.findIndex(h => h === 'MATRICULE');
     const nomIndex = headers.findIndex(h => h === 'NOM');
@@ -121,19 +193,24 @@ const ImportExcel = () => {
 
     const rows: ParsedRow[] = [];
     const formatErrors: string[] = [];
+    const totalRows = data.length - 1;
 
     for (let i = 1; i < data.length; i++) {
       const row = data[i] as unknown[];
       const rowNum = i + 1;
       
-      // Vérifier que la ligne n'est pas vide
+      // Mise à jour progressive de la progression
+      if (i % 100 === 0) {
+        const progress = 25 + Math.floor((i / totalRows) * 15);
+        updateProgress('validating', progress, `Validation des lignes... (${i}/${totalRows})`, totalRows, i);
+      }
+      
       if (!row || row.length === 0 || row.every(cell => !cell)) {
-        continue; // Ignorer les lignes vides
+        continue;
       }
 
       let hasError = false;
 
-      // Extraire et nettoyer les valeurs
       const periode = String(row[periodeIndex] ?? '').trim();
       const matricule = String(row[matriculeIndex] ?? '').trim();
       const nom = String(row[nomIndex] ?? '').trim();
@@ -142,38 +219,32 @@ const ImportExcel = () => {
       const cco = String(row[ccoIndex] ?? '').trim();
       const montantRaw = String(row[montantIndex] ?? '').trim();
 
-      // VALIDATION STRICTE : PÉRIODE (exactement 6 chiffres, format YYYYMM)
       if (!/^\d{6}$/.test(periode)) {
         formatErrors.push(`Ligne ${rowNum} : PERIODE invalide "${periode}" (format requis : YYYYMM, exactement 6 chiffres)`);
         hasError = true;
       }
 
-      // VALIDATION STRICTE : MATRICULE (exactement 7 chiffres)
       if (!/^\d{7}$/.test(matricule)) {
         formatErrors.push(`Ligne ${rowNum} : MATRICULE invalide "${matricule}" (requis : exactement 7 chiffres)`);
         hasError = true;
       }
 
-      // VALIDATION STRICTE : CODE CAISSE (exactement 3 chiffres)
       if (!/^\d{3}$/.test(codeCaisse)) {
         formatErrors.push(`Ligne ${rowNum} : CODE CAISSE invalide "${codeCaisse}" (requis : exactement 3 chiffres)`);
         hasError = true;
       }
 
-      // VALIDATION STRICTE : CCO (1 à 7 chiffres maximum)
       if (!/^\d{1,7}$/.test(cco)) {
         formatErrors.push(`Ligne ${rowNum} : CCO invalide "${cco}" (requis : 1 à 7 chiffres)`);
         hasError = true;
       }
 
-      // VALIDATION STRICTE : MONTANT (nombre uniquement, entier ou décimal)
       const montantNum = Number(montantRaw);
       if (montantRaw === '' || isNaN(montantNum)) {
         formatErrors.push(`Ligne ${rowNum} : MONTANT invalide "${montantRaw}" (requis : nombre uniquement)`);
         hasError = true;
       }
 
-      // VALIDATION : NOM et PRENOM (non vides)
       if (!nom || nom.length === 0) {
         formatErrors.push(`Ligne ${rowNum} : NOM requis (champ vide)`);
         hasError = true;
@@ -183,7 +254,6 @@ const ImportExcel = () => {
         hasError = true;
       }
 
-      // Si pas d'erreur, ajouter la ligne
       if (!hasError) {
         rows.push({
           periode: parseInt(periode),
@@ -222,22 +292,21 @@ const ImportExcel = () => {
     return { valid: true, rows };
   };
 
-  // ÉTAPE 3 : Vérifier les doublons internes (MATRICULE et CCO)
+  // ÉTAPE 3 : Vérifier les doublons internes
   const checkInternalDuplicates = (rows: ParsedRow[]): boolean => {
+    updateProgress('validating', 45, 'Vérification des doublons...');
+    
     const matriculeMap = new Map<string, number[]>();
     const ccoMap = new Map<string, number[]>();
     const duplicates: string[] = [];
 
-    // Parcourir toutes les lignes pour détecter les doublons
     for (const row of rows) {
-      // Vérifier les doublons de MATRICULE
       if (!matriculeMap.has(row.matricule)) {
         matriculeMap.set(row.matricule, [row.row_number]);
       } else {
         matriculeMap.get(row.matricule)!.push(row.row_number);
       }
 
-      // Vérifier les doublons de CCO
       if (!ccoMap.has(row.cco)) {
         ccoMap.set(row.cco, [row.row_number]);
       } else {
@@ -245,7 +314,6 @@ const ImportExcel = () => {
       }
     }
 
-    // Collecter les doublons de MATRICULE
     for (const [matricule, lineNumbers] of matriculeMap.entries()) {
       if (lineNumbers.length > 1) {
         duplicates.push(
@@ -254,7 +322,6 @@ const ImportExcel = () => {
       }
     }
 
-    // Collecter les doublons de CCO
     for (const [cco, lineNumbers] of ccoMap.entries()) {
       if (lineNumbers.length > 1) {
         duplicates.push(
@@ -283,6 +350,8 @@ const ImportExcel = () => {
   };
 
   const validatePeriod = (rows: ParsedRow[], selectedPeriod: number): boolean => {
+    updateProgress('validating', 50, 'Vérification de la période...');
+    
     const invalidPeriods = rows.filter(r => r.periode !== selectedPeriod);
 
     if (invalidPeriods.length > 0) {
@@ -302,6 +371,8 @@ const ImportExcel = () => {
 
   // ÉTAPE 4 : Vérifier avec l'historique
   const checkHistoricalDuplicates = async (rows: ParsedRow[], period: number): Promise<{ valid: boolean; isUpdate: boolean }> => {
+    updateProgress('validating', 60, 'Vérification de l\'historique...');
+    
     if (!companyUser?.company_id) {
       setValidationErrors([{
         type: 'update_detected',
@@ -311,7 +382,6 @@ const ImportExcel = () => {
     }
 
     try {
-      // Récupérer tous les imports pour cette période et cette entreprise
       const { data: previousImports, error: importsError } = await supabase
         .from('file_imports')
         .select('id, row_count, filename, created_at')
@@ -331,7 +401,6 @@ const ImportExcel = () => {
         return { valid: false, isUpdate: false };
       }
 
-      // Si aucun import précédent, c'est un nouveau fichier
       if (!previousImports || previousImports.length === 0) {
         console.log('✅ Nouveau fichier - aucun historique trouvé pour cette période');
         return { valid: true, isUpdate: false };
@@ -345,7 +414,6 @@ const ImportExcel = () => {
         date: lastImport.created_at,
       });
 
-      // Récupérer toutes les lignes du dernier import
       const { data: existingRows, error: rowsError } = await supabase
         .from('file_import_rows')
         .select('periode, matricule, nom_prenom, code_caisse, cco, montant')
@@ -367,15 +435,12 @@ const ImportExcel = () => {
         return { valid: true, isUpdate: false };
       }
 
-      // Créer une signature complète pour chaque ligne (tous les champs)
       const createSignature = (r: any) => {
         return `${r.periode}|${r.matricule}|${r.nom_prenom}|${r.code_caisse}|${r.cco}|${r.montant}`;
       };
 
-      // Trier les lignes actuelles par matricule pour une comparaison cohérente
       const sortedCurrentRows = [...rows].sort((a, b) => a.matricule.localeCompare(b.matricule));
 
-      // Créer les sets de signatures
       const previousSignatures = new Set(
         existingRows.map(r => createSignature({
           periode: r.periode,
@@ -387,7 +452,6 @@ const ImportExcel = () => {
         }))
       );
 
-      // Vérifier si les fichiers sont identiques
       const isIdentical = 
         rows.length === existingRows.length &&
         sortedCurrentRows.every(r => previousSignatures.has(createSignature({
@@ -400,7 +464,6 @@ const ImportExcel = () => {
         })));
 
       if (isIdentical) {
-        // CAS 1: Fichier identique → REJET
         console.log('❌ Fichier identique détecté - Import rejeté');
         setValidationErrors([{
           type: 'duplicate_file',
@@ -416,21 +479,13 @@ const ImportExcel = () => {
         return { valid: false, isUpdate: false };
       }
 
-      // CAS 2: Fichier modifié → ALERTE puis ACCEPTATION après confirmation
       console.log('🔄 Modifications détectées dans le fichier');
 
-      // Détecter les différences
       const differences: string[] = [];
-
-      // Vérifier les nouvelles lignes
       const existingMatricules = new Set(existingRows.map(r => r.matricule));
       const newRows = sortedCurrentRows.filter(r => !existingMatricules.has(r.matricule));
-
-      // Vérifier les lignes supprimées
       const currentMatricules = new Set(sortedCurrentRows.map(r => r.matricule));
       const deletedRows = existingRows.filter(r => !currentMatricules.has(r.matricule));
-
-      // Vérifier les lignes modifiées
       const modifiedRows = sortedCurrentRows.filter(currentRow => {
         const currentSig = createSignature({
           periode: currentRow.periode,
@@ -453,7 +508,6 @@ const ImportExcel = () => {
         differences.push(`✏️ ${modifiedRows.length} ligne(s) modifiée(s)`);
       }
 
-      // Afficher l'alerte de mise à jour
       setUpdateDetected(true);
       setValidationErrors([{
         type: 'update_detected',
@@ -487,7 +541,6 @@ const ImportExcel = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
-      // Validation de l'extension
       const fileExtension = selectedFile.name.toLowerCase().substring(selectedFile.name.lastIndexOf('.'));
       if (!VALID_EXTENSIONS.includes(fileExtension)) {
         toast({
@@ -498,7 +551,6 @@ const ImportExcel = () => {
         return;
       }
 
-      // Validation de la taille
       if (selectedFile.size > MAX_FILE_SIZE) {
         toast({
           title: 'Fichier trop volumineux',
@@ -508,27 +560,26 @@ const ImportExcel = () => {
         return;
       }
 
-      // Réinitialisation complète des états dans le bon ordre
       setValidationErrors([]);
       setIsSuccess(false);
       setUpdateDetected(false);
       setPendingUpdate(null);
+      setUploadProgress({ stage: 'parsing', progress: 0, message: 'Fichier sélectionné' });
       
-      // Ajouter un petit délai pour permettre à React de finir le rendu
       setTimeout(() => {
         setFile(selectedFile);
       }, 0);
     }
   };
 
-  // Fonction pour effectuer l'import
+  // Fonction pour effectuer l'import avec suivi de progression
   const performImport = async (rows: ParsedRow[], historyCheck: { valid: boolean; isUpdate: boolean }) => {
     if (!file || !companyUser?.company_id || !user || !selectedPeriod) return;
 
     try {
       setIsUploading(true);
+      updateProgress('uploading', 70, 'Téléversement du fichier...');
 
-      // Téléverser le fichier avec gestion d'erreurs détaillée
       const storagePath = `${companyUser.company_id}/${Date.now()}_${file.name}`;
       
       console.log('🔄 Tentative de téléversement vers Supabase Storage:', {
@@ -549,7 +600,6 @@ const ImportExcel = () => {
       if (uploadError) {
         console.error('❌ Erreur de téléversement:', uploadError);
         
-        // Messages d'erreur personnalisés
         let errorMessage = '';
         let errorDetails: string[] = [];
         
@@ -603,12 +653,14 @@ const ImportExcel = () => {
         }]);
         
         setIsUploading(false);
+        updateProgress('parsing', 0, 'Erreur lors du téléversement');
         return;
       }
 
       console.log('✅ Téléversement réussi:', uploadData);
+      updateProgress('saving', 80, 'Enregistrement des données...');
 
-      // Créer l'enregistrement d'import
+      // Créer l'enregistrement d'import avec progression
       const { data: importData, error: importError } = await supabase
         .from('file_imports')
         .insert({
@@ -617,9 +669,11 @@ const ImportExcel = () => {
           storage_path: storagePath,
           period: parseInt(selectedPeriod),
           selected_period: parseInt(selectedPeriod),
-          status: 'pending',
+          status: 'uploading',
           uploaded_by: user.id,
           row_count: rows.length,
+          upload_progress: 80,
+          upload_stage: 'saving',
         })
         .select()
         .single();
@@ -629,26 +683,44 @@ const ImportExcel = () => {
         throw new Error(`Erreur lors de la création du dossier d'import: ${importError.message}`);
       }
 
-      // Insérer les lignes
-      const rowsToInsert = rows.map(row => ({
-        file_import_id: importData.id,
-        periode: row.periode,
-        matricule: row.matricule,
-        nom_prenom: `${row.nom} ${row.prenom}`,
-        code_caisse: row.code_caisse,
-        cco: row.cco,
-        montant: row.montant,
-        row_number: row.row_number,
-      }));
+      updateProgress('saving', 85, 'Importation des lignes...');
 
-      const { error: rowsError } = await supabase
-        .from('file_import_rows')
-        .insert(rowsToInsert);
+      // Insérer les lignes par batch pour performance
+      const batchSize = 500;
+      const totalBatches = Math.ceil(rows.length / batchSize);
+      
+      for (let i = 0; i < rows.length; i += batchSize) {
+        const batch = rows.slice(i, i + batchSize);
+        const currentBatch = Math.floor(i / batchSize) + 1;
+        
+        updateProgress('saving', 85 + Math.floor((currentBatch / totalBatches) * 10), 
+          `Importation des lignes... (${i + batch.length}/${rows.length})`,
+          rows.length,
+          i + batch.length
+        );
 
-      if (rowsError) {
-        console.error('Erreur lors de l\'insertion des lignes:', rowsError);
-        throw new Error(`Erreur lors de l'importation des lignes: ${rowsError.message}`);
+        const rowsToInsert = batch.map(row => ({
+          file_import_id: importData.id,
+          periode: row.periode,
+          matricule: row.matricule,
+          nom_prenom: `${row.nom} ${row.prenom}`,
+          code_caisse: row.code_caisse,
+          cco: row.cco,
+          montant: row.montant,
+          row_number: row.row_number,
+        }));
+
+        const { error: rowsError } = await supabase
+          .from('file_import_rows')
+          .insert(rowsToInsert);
+
+        if (rowsError) {
+          console.error('Erreur lors de l\'insertion des lignes:', rowsError);
+          throw new Error(`Erreur lors de l'importation des lignes: ${rowsError.message}`);
+        }
       }
+
+      updateProgress('saving', 95, 'Finalisation...');
 
       // Mettre à jour les références employés
       const { data: existingRefs, error: refError } = await supabase
@@ -680,32 +752,41 @@ const ImportExcel = () => {
         }
       }
 
-      // Marquer comme validé
+      // Marquer comme validé avec progression à 100%
       const { error: updateError } = await supabase
         .from('file_imports')
-        .update({ status: 'validated' })
+        .update({ 
+          status: 'validated',
+          upload_progress: 100,
+          upload_stage: 'complete',
+        })
         .eq('id', importData.id);
 
       if (updateError) {
         console.error('Erreur lors de la mise à jour du statut:', updateError);
       }
 
-      // Mettre à jour les états dans le bon ordre avec un délai
-      setIsUploading(false);
-      
-      // Attendre que React finisse le rendu avant de mettre à jour les autres états
+      updateProgress('complete', 100, 'Importation terminée avec succès!', rows.length, rows.length);
+
       setTimeout(() => {
+        setIsUploading(false);
         setIsSuccess(true);
         setFile(null);
         setSelectedPeriod('');
         setPendingUpdate(null);
         setUpdateDetected(false);
+        setUploadProgress({ stage: 'parsing', progress: 0, message: 'En attente...' });
+        
+        // Reset file input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
         
         toast({
           title: historyCheck.isUpdate ? '✅ Mise à jour transmise avec succès' : '✅ Import réussi',
           description: `${rows.length} ligne(s) importée(s) avec succès`,
         });
-      }, 100);
+      }, 500);
 
     } catch (error) {
       console.error('Erreur lors de l\'import:', error);
@@ -719,6 +800,7 @@ const ImportExcel = () => {
         variant: 'destructive',
       });
       setIsUploading(false);
+      updateProgress('parsing', 0, 'Erreur lors de l\'importation');
     }
   };
 
@@ -732,15 +814,14 @@ const ImportExcel = () => {
       return;
     }
 
-    // Réinitialiser tous les états en une seule fois
     setIsUploading(true);
     setValidationErrors([]);
     setIsSuccess(false);
     setUpdateDetected(false);
     setPendingUpdate(null);
+    updateProgress('parsing', 5, 'Lecture du fichier...');
 
     try {
-      // Lire et parser le fichier Excel
       const arrayBuffer = await file.arrayBuffer();
       const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
       let workbook: XLSX.WorkBook;
@@ -760,51 +841,50 @@ const ImportExcel = () => {
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       const data = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1 });
 
-      // ÉTAPE 1 : Vérifier la structure
       const structureValidation = validateStructure(worksheet);
       if (!structureValidation.valid || !structureValidation.headers) {
         setIsUploading(false);
+        updateProgress('parsing', 0, 'Erreur de validation');
         return;
       }
 
-      // ÉTAPE 2 : Valider les formats de champs
       const formatValidation = validateFieldFormats(data, structureValidation.headers);
       if (!formatValidation.valid || !formatValidation.rows) {
         setIsUploading(false);
+        updateProgress('parsing', 0, 'Erreur de validation');
         return;
       }
 
       const rows = formatValidation.rows;
 
-      // Vérifier que la période correspond
       const periodValid = validatePeriod(rows, parseInt(selectedPeriod));
       if (!periodValid) {
         setIsUploading(false);
+        updateProgress('parsing', 0, 'Erreur de validation');
         return;
       }
 
-      // ÉTAPE 3 : Vérifier les doublons internes
       const noDuplicatesInternal = checkInternalDuplicates(rows);
       if (!noDuplicatesInternal) {
         setIsUploading(false);
+        updateProgress('parsing', 0, 'Erreur de validation');
         return;
       }
 
-      // ÉTAPE 4 : Vérifier avec l'historique
       const historyCheck = await checkHistoricalDuplicates(rows, parseInt(selectedPeriod));
       if (!historyCheck.valid) {
         setIsUploading(false);
+        updateProgress('parsing', 0, 'Erreur de validation');
         return;
       }
 
-      // Si c'est une mise à jour, stocker les données et attendre confirmation
       if (historyCheck.isUpdate) {
         setPendingUpdate({ rows, historyCheck });
         setIsUploading(false);
-        return; // Arrêter ici et attendre la confirmation de l'utilisateur
+        updateProgress('parsing', 0, 'En attente de confirmation');
+        return;
       }
 
-      // Continuer avec l'import (nouveau fichier)
       await performImport(rows, historyCheck);
 
     } catch (error) {
@@ -819,10 +899,10 @@ const ImportExcel = () => {
         variant: 'destructive',
       });
       setIsUploading(false);
+      updateProgress('parsing', 0, 'Erreur');
     }
   }, [file, selectedPeriod, companyUser, user, toast]);
 
-  // Fonction pour confirmer et envoyer la mise à jour
   const handleConfirmUpdate = useCallback(async () => {
     if (!pendingUpdate) return;
     await performImport(pendingUpdate.rows, pendingUpdate.historyCheck);
@@ -838,184 +918,375 @@ const ImportExcel = () => {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Modèle');
     XLSX.writeFile(wb, 'modele_import.xlsx');
+    
+    toast({
+      title: '✅ Modèle téléchargé',
+      description: 'Le fichier modele_import.xlsx a été téléchargé',
+    });
+  };
+
+  const getProgressColor = () => {
+    if (uploadProgress.stage === 'complete') return 'bg-green-500';
+    if (uploadProgress.stage === 'uploading' || uploadProgress.stage === 'saving') return 'bg-blue-500';
+    return 'bg-primary';
+  };
+
+  const getStageIcon = (stage: UploadProgress['stage']) => {
+    switch (stage) {
+      case 'parsing': return <FileSpreadsheet className="h-4 w-4" />;
+      case 'validating': return <AlertTriangle className="h-4 w-4" />;
+      case 'uploading': return <Upload className="h-4 w-4" />;
+      case 'saving': return <Loader2 className="h-4 w-4 animate-spin" />;
+      case 'complete': return <CheckCircle className="h-4 w-4" />;
+    }
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Import Excel</h1>
-        <p className="text-muted-foreground">
-          Importez vos fichiers de données de paie
-        </p>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Upload form */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Upload className="h-5 w-5" />
-              Nouveau fichier
-            </CardTitle>
-            <CardDescription>
-              Sélectionnez la période et téléversez votre fichier Excel ou CSV
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Période</label>
-              <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionnez une période" />
-                </SelectTrigger>
-                <SelectContent>
-                  {periodOptions.map(opt => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-4 md:p-6">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 shadow-sm border border-white/20">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                Import Excel
+              </h1>
+              <p className="text-slate-600 mt-1">
+                Importez vos fichiers de données de paie en toute sécurité
+              </p>
             </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Fichier Excel ou CSV</label>
-              <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
-                <input
-                  type="file"
-                  accept={VALID_EXTENSIONS.join(',')}
-                  onChange={handleFileChange}
-                  className="hidden"
-                  id="file-upload"
-                />
-                <label htmlFor="file-upload" className="cursor-pointer">
-                  <FileSpreadsheet className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
-                  {file ? (
-                    <p className="text-sm font-medium">{file.name}</p>
-                  ) : (
-                    <>
-                      <p className="text-sm text-muted-foreground">
-                        Cliquez pour sélectionner un fichier
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Formats acceptés: {VALID_EXTENSIONS.join(', ')} (Max 10MB)
-                      </p>
-                    </>
-                  )}
-                </label>
-              </div>
+            <div className="hidden md:flex items-center gap-3">
+              <Badge variant="outline" className="gap-2">
+                <TrendingUp className="h-3 w-3" />
+                Validation en 4 étapes
+              </Badge>
             </div>
+          </div>
+        </div>
 
-            <Button 
-              className="w-full" 
-              onClick={handleUpload} 
-              disabled={!file || !selectedPeriod || isUploading || !!pendingUpdate}
-            >
-              {isUploading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Traitement en cours...
-                </>
-              ) : (
-                <>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Importer
-                </>
-              )}
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Info and errors */}
-        <div className="space-y-4">
-          {validationErrors.length > 0 && (
-            <Alert 
-              key="validation-alert"
-              variant={validationErrors[0].type === 'update_detected' ? 'default' : 'destructive'} 
-              className={validationErrors[0].type === 'update_detected' ? 'border-blue-500/50 bg-blue-500/5' : ''}
-            >
-              {validationErrors[0].type === 'update_detected' ? (
-                <Info className="h-4 w-4 text-blue-500" />
-              ) : (
-                <AlertTriangle className="h-4 w-4" />
-              )}
-              <AlertTitle className={validationErrors[0].type === 'update_detected' ? 'text-blue-500' : ''}>
-                {validationErrors[0].type === 'update_detected' ? '🔄 Mise à jour détectée' : 'Erreur de validation'}
-              </AlertTitle>
-              <AlertDescription>
-                {validationErrors.map((err, i) => (
-                  <div key={`error-${err.type}-${i}`} className="mt-2">
-                    <p className="font-medium">{err.message}</p>
-                    {err.details && err.details.length > 0 && (
-                      <ul className="text-sm mt-2 space-y-0.5">
-                        {err.details.map((d, j) => (
-                          <li key={`detail-${i}-${j}-${d.substring(0, 20)}`} className={d.startsWith('📊') || d.startsWith('✅') ? 'font-semibold mt-2' : ''}>
-                            {d}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
+        {/* Ongoing Imports Alert */}
+        {showOngoingImports && ongoingImports.length > 0 && (
+          <Alert className="bg-blue-50 border-blue-200">
+            <Clock className="h-4 w-4 text-blue-600" />
+            <AlertTitle className="text-blue-900">Importations en cours</AlertTitle>
+            <AlertDescription>
+              <div className="space-y-2 mt-2">
+                {ongoingImports.map(imp => (
+                  <div key={imp.id} className="bg-white rounded-lg p-3 border border-blue-100">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <p className="font-medium text-sm text-slate-900">{imp.filename}</p>
+                        <p className="text-xs text-slate-500">
+                          Période: {String(imp.period).slice(4)}/{String(imp.period).slice(0, 4)}
+                        </p>
+                      </div>
+                      <Badge variant="secondary" className="text-xs">
+                        {imp.progress}%
+                      </Badge>
+                    </div>
+                    <Progress value={imp.progress} className="h-2" />
                   </div>
                 ))}
-                {validationErrors[0].type === 'update_detected' && pendingUpdate && (
-                  <Button 
-                    key="confirm-update-button"
-                    className="mt-4 w-full bg-blue-500 hover:bg-blue-600"
-                    onClick={handleConfirmUpdate}
-                    disabled={isUploading}
-                  >
-                    {isUploading ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Envoi en cours...
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Confirmer et envoyer la mise à jour
-                      </>
-                    )}
-                  </Button>
-                )}
-              </AlertDescription>
-            </Alert>
-          )}
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-3"
+                onClick={() => setShowOngoingImports(false)}
+              >
+                Masquer
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
 
-          {isSuccess && (
-            <Alert key="success-alert" className="border-primary/50 bg-primary/5">
-              <CheckCircle className="h-4 w-4 text-primary" />
-              <AlertTitle className="text-primary">Import réussi</AlertTitle>
-              <AlertDescription className="text-muted-foreground">
-                Votre fichier a été traité avec succès.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Format attendu</CardTitle>
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Upload Form Card */}
+          <Card className="bg-white/80 backdrop-blur-sm shadow-lg border-white/20 hover:shadow-xl transition-all duration-300">
+            <CardHeader className="space-y-1">
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg">
+                  <Upload className="h-5 w-5 text-white" />
+                </div>
+                Nouveau fichier
+              </CardTitle>
+              <CardDescription>
+                Sélectionnez la période et téléversez votre fichier
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="text-sm space-y-1.5">
-                <p><strong>PÉRIODE</strong> - Format YYYYMM (ex: 202501)</p>
-                <p><strong>MATRICULE</strong> - 7 chiffres (ex: 5119788)</p>
-                <p><strong>NOM</strong> - Nom du salarié</p>
-                <p><strong>PRENOM</strong> - Prénom du salarié</p>
-                <p><strong>CODE CAISSE</strong> - 3 chiffres (ex: 249)</p>
-                <p><strong>CCO</strong> - 1 à 7 chiffres (ex: 023467)</p>
-                <p><strong>MONTANT</strong> - Nombre entier (ex: 10987777)</p>
+            <CardContent className="space-y-6">
+              {/* Period Selection */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                  📅 Période de paie
+                </label>
+                <Select value={selectedPeriod} onValueChange={setSelectedPeriod} disabled={isUploading}>
+                  <SelectTrigger className="border-slate-200 focus:border-blue-500 focus:ring-blue-500">
+                    <SelectValue placeholder="Sélectionnez une période" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {periodOptions.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="pt-2 border-t">
-                <p className="text-xs text-muted-foreground mb-2">
-                  ✅ Validation en 4 étapes : Structure → Formats → Doublons internes → Historique
-                </p>
+
+              {/* File Upload */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                  📄 Fichier Excel ou CSV
+                </label>
+                <div className="relative group">
+                  <div className={`
+                    border-2 border-dashed rounded-xl p-8 text-center transition-all duration-300
+                    ${file 
+                      ? 'border-blue-500 bg-blue-50' 
+                      : 'border-slate-300 hover:border-blue-400 hover:bg-blue-50/50'
+                    }
+                    ${isUploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                  `}>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept={VALID_EXTENSIONS.join(',')}
+                      onChange={handleFileChange}
+                      className="hidden"
+                      id="file-upload"
+                      disabled={isUploading}
+                    />
+                    <label 
+                      htmlFor="file-upload" 
+                      className={isUploading ? 'cursor-not-allowed' : 'cursor-pointer'}
+                    >
+                      <div className="flex flex-col items-center gap-3">
+                        <div className={`
+                          p-4 rounded-full transition-all duration-300
+                          ${file 
+                            ? 'bg-blue-500 group-hover:bg-blue-600' 
+                            : 'bg-slate-200 group-hover:bg-blue-500'
+                          }
+                        `}>
+                          <FileSpreadsheet className={`
+                            h-8 w-8 transition-colors
+                            ${file ? 'text-white' : 'text-slate-600 group-hover:text-white'}
+                          `} />
+                        </div>
+                        {file ? (
+                          <div className="space-y-1">
+                            <p className="text-sm font-semibold text-blue-900">{file.name}</p>
+                            <p className="text-xs text-blue-600">
+                              {(file.size / 1024).toFixed(2)} KB
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            <p className="text-sm font-medium text-slate-700">
+                              Cliquez pour sélectionner un fichier
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {VALID_EXTENSIONS.join(', ')} • Max 10MB
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </label>
+                  </div>
+                </div>
               </div>
-              <Button variant="outline" className="w-full" onClick={downloadTemplate}>
-                <Download className="h-4 w-4 mr-2" />
-                Télécharger le modèle
+
+              {/* Progress Bar */}
+              {isUploading && (
+                <div className="space-y-3 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm font-medium text-blue-900">
+                      {getStageIcon(uploadProgress.stage)}
+                      <span>{uploadProgress.message}</span>
+                    </div>
+                    <span className="text-sm font-bold text-blue-600">
+                      {uploadProgress.progress}%
+                    </span>
+                  </div>
+                  <Progress 
+                    value={uploadProgress.progress} 
+                    className="h-2.5"
+                  />
+                  {uploadProgress.totalRows && (
+                    <p className="text-xs text-slate-600 text-center">
+                      {uploadProgress.processedRows || 0} / {uploadProgress.totalRows} lignes traitées
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Upload Button */}
+              <Button 
+                className={`
+                  w-full h-12 text-base font-semibold
+                  bg-gradient-to-r from-blue-600 to-indigo-600 
+                  hover:from-blue-700 hover:to-indigo-700
+                  shadow-lg hover:shadow-xl
+                  transition-all duration-300
+                  disabled:opacity-50 disabled:cursor-not-allowed
+                `}
+                onClick={handleUpload} 
+                disabled={!file || !selectedPeriod || isUploading || !!pendingUpdate}
+              >
+                {isUploading ? (
+                  <>
+                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                    Traitement en cours...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-5 w-5 mr-2" />
+                    Lancer l'importation
+                  </>
+                )}
               </Button>
             </CardContent>
           </Card>
+
+          {/* Info and Errors Column */}
+          <div className="space-y-4">
+            {/* Validation Errors */}
+            {validationErrors.length > 0 && (
+              <Alert 
+                variant={validationErrors[0].type === 'update_detected' ? 'default' : 'destructive'} 
+                className={`
+                  ${validationErrors[0].type === 'update_detected' 
+                    ? 'border-blue-500 bg-gradient-to-br from-blue-50 to-indigo-50' 
+                    : 'bg-red-50 border-red-200'
+                  }
+                  shadow-lg
+                `}
+              >
+                {validationErrors[0].type === 'update_detected' ? (
+                  <Info className="h-4 w-4 text-blue-600" />
+                ) : (
+                  <AlertTriangle className="h-4 w-4 text-red-600" />
+                )}
+                <AlertTitle className={`font-bold ${
+                  validationErrors[0].type === 'update_detected' 
+                    ? 'text-blue-900' 
+                    : 'text-red-900'
+                }`}>
+                  {validationErrors[0].type === 'update_detected' 
+                    ? '🔄 Mise à jour détectée' 
+                    : '⚠️ Erreur de validation'
+                  }
+                </AlertTitle>
+                <AlertDescription>
+                  {validationErrors.map((err, i) => (
+                    <div key={`error-${err.type}-${i}`} className="mt-2">
+                      <p className="font-medium">{err.message}</p>
+                      {err.details && err.details.length > 0 && (
+                        <ul className="text-sm mt-3 space-y-1 pl-4">
+                          {err.details.map((d, j) => (
+                            <li 
+                              key={`detail-${i}-${j}`}
+                              className={`
+                                ${d.startsWith('📊') || d.startsWith('✅') ? 'font-semibold mt-2' : ''}
+                                ${d === '' ? 'h-2' : ''}
+                              `}
+                            >
+                              {d}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ))}
+                  {validationErrors[0].type === 'update_detected' && pendingUpdate && (
+                    <Button 
+                      className="mt-4 w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg"
+                      onClick={handleConfirmUpdate}
+                      disabled={isUploading}
+                    >
+                      {isUploading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Envoi en cours...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Confirmer et envoyer la mise à jour
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Success Message */}
+            {isSuccess && (
+              <Alert className="border-green-500 bg-gradient-to-br from-green-50 to-emerald-50 shadow-lg">
+                <CheckCircle className="h-4 w-4 text-green-600" />
+                <AlertTitle className="text-green-900 font-bold">✅ Import réussi</AlertTitle>
+                <AlertDescription className="text-green-700">
+                  Votre fichier a été traité avec succès. Les données sont maintenant disponibles.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Format Info Card */}
+            <Card className="bg-white/80 backdrop-blur-sm shadow-lg border-white/20">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <div className="p-1.5 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg">
+                    <Info className="h-4 w-4 text-white" />
+                  </div>
+                  Format attendu
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-2 text-sm">
+                  {[
+                    { label: 'PÉRIODE', desc: 'Format YYYYMM (ex: 202501)', icon: '📅' },
+                    { label: 'MATRICULE', desc: '7 chiffres (ex: 5119788)', icon: '🔢' },
+                    { label: 'NOM', desc: 'Nom du salarié', icon: '👤' },
+                    { label: 'PRENOM', desc: 'Prénom du salarié', icon: '👤' },
+                    { label: 'CODE CAISSE', desc: '3 chiffres (ex: 249)', icon: '🏦' },
+                    { label: 'CCO', desc: '1 à 7 chiffres (ex: 023467)', icon: '🔑' },
+                    { label: 'MONTANT', desc: 'Nombre entier (ex: 10987777)', icon: '💰' },
+                  ].map((field, idx) => (
+                    <div 
+                      key={idx}
+                      className="flex items-start gap-3 p-3 rounded-lg bg-gradient-to-r from-slate-50 to-slate-100 hover:from-blue-50 hover:to-indigo-50 transition-all duration-200"
+                    >
+                      <span className="text-lg">{field.icon}</span>
+                      <div>
+                        <p className="font-semibold text-slate-900">{field.label}</p>
+                        <p className="text-xs text-slate-600">{field.desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-3 border-t border-slate-200">
+                  <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-lg">
+                    <CheckCircle className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-blue-900">
+                      <strong>Validation en 4 étapes:</strong> Structure → Formats → Doublons internes → Historique
+                    </p>
+                  </div>
+                </div>
+
+                <Button 
+                  variant="outline" 
+                  className="w-full border-2 border-slate-200 hover:border-blue-500 hover:bg-blue-50 transition-all duration-200"
+                  onClick={downloadTemplate}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Télécharger le modèle
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </div>
