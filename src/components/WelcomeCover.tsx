@@ -85,10 +85,10 @@ export const WelcomeCover = ({ onFinished }: WelcomeCoverProps) => {
               className="text-center"
             >
               <h2 className="text-2xl font-black text-slate-900 leading-tight">
-                Votre épargne est entre <span className="text-[#e30613]">bonnes mains</span>
+                Envoyer vos fiche de paie <span className="text-[#e30613]"> 📁</span>
               </h2>
               <p className="text-slate-500 text-sm mt-3 font-medium">
-                Accédez à vos comptes, crédits et services <br/> MUCODEC où que vous soyez.
+                 <br/>  où que vous soyez.
               </p>
             </motion.div>
 
