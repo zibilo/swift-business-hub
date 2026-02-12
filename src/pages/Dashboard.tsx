@@ -63,7 +63,7 @@ const Dashboard = () => {
       {/* HEADER FIXE (SANS SCROLL) */}
       <header className="px-6 pt-8 pb-4 flex justify-between items-center shrink-0">
         <div className="space-y-1">
-          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-500">Secure Node</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-500">MUCODEC PAIE </p>
           <h1 className="text-2xl font-bold text-white tracking-tight">Espace Client</h1>
         </div>
         <div className="h-12 w-12 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center relative active:scale-90 transition-transform">
@@ -159,7 +159,7 @@ const Dashboard = () => {
       {/* FOOTER DISCRET (SANS BARRE DE NAVIGATION) */}
       <footer className="p-6 pt-2 shrink-0 text-center">
         <p className="text-[9px] text-slate-700 font-medium uppercase tracking-[0.4em]">
-          Powered by Secure Node Financial
+          MUCODEC 2026 .COM
         </p>
       </footer>
 
