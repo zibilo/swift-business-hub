@@ -34,7 +34,7 @@ export const OfflinePage = ({ onRetry }: { onRetry: () => void }) => {
       <div className="mt-8 p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-3 text-left">
         <ShieldAlert className="h-5 w-5 text-amber-500 shrink-0" />
         <p className="text-[10px] text-slate-600 uppercase font-bold tracking-wider">
-          Vos transactions en cours sont protégées et reprendront dès le retour de la connexion.
+          Vos informations sur les paies sont protégés .
         </p>
       </div>
 
@@ -48,7 +48,7 @@ export const OfflinePage = ({ onRetry }: { onRetry: () => void }) => {
           Réessayer la connexion
         </Button>
         <p className="text-[10px] text-slate-400 uppercase font-medium tracking-widest">
-          Code d'erreur : FAILED_TO_FETCH_NETWORK
+         PAS D 'INTERNET 
         </p>
       </div>
     </div>
