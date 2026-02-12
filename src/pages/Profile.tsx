@@ -1,15 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { 
-  User, Mail, Phone, Loader2, 
-  X, LogOut, ChevronLeft, Check, 
-  ShieldCheck, Camera, Settings2
+  User, Mail, Phone, Save, Loader2, 
+  X, Edit3, LogOut, ArrowLeft, Check
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from '@/lib/utils';
 
 const Profile = () => {
   const { user, profile, refreshProfile, signOut } = useAuth();
@@ -41,142 +40,119 @@ const Profile = () => {
   };
 
   return (
-    // h-screen + overflow-hidden pour empêcher tout scroll
-    <div className="h-screen w-full bg-[#F8FAFC] text-slate-900 flex flex-col overflow-hidden font-sans">
+    <div className="min-h-screen bg-white text-zinc-900 font-sans antialiased">
       
-      {/* HEADER NAVIGATION */}
-      <header className="px-6 pt-12 pb-6 flex items-center justify-between bg-white border-b border-slate-100">
-        <button 
-          onClick={() => window.history.back()} 
-          className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-50 text-slate-600 active:scale-90 transition-all"
-        >
-          <ChevronLeft className="h-6 w-6" />
+      {/* HEADER MINIMALISTE */}
+      <nav className="flex items-center justify-between px-6 py-8">
+        <button onClick={() => window.history.back()} className="text-zinc-400 hover:text-zinc-900 transition-colors">
+          <ArrowLeft className="h-5 w-5" />
         </button>
-        <h2 className="text-sm font-black uppercase tracking-[0.2em] text-slate-400">Compte Client</h2>
-        <button 
-          onClick={() => isEditing ? handleSave() : setIsEditing(true)}
-          disabled={isSaving}
-          className={cn(
-            "w-10 h-10 flex items-center justify-center rounded-full transition-all active:scale-90",
-            isEditing ? "bg-emerald-500 text-white shadow-lg shadow-emerald-200" : "bg-blue-50 text-blue-600"
-          )}
-        >
-          {isSaving ? <Loader2 className="h-5 w-5 animate-spin" /> : (isEditing ? <Check className="h-5 w-5" /> : <Settings2 className="h-5 w-5" />)}
-        </button>
-      </header>
-
-      {/* ZONE CENTRALE - FLEX GROW */}
-      <main className="flex-1 flex flex-col items-center justify-start px-8 pt-10">
         
-        {/* AVATAR DYNAMIQUE */}
-        <div className="relative mb-8">
-          <motion.div 
-            layoutId="avatar"
-            className="w-28 h-28 bg-gradient-to-tr from-[#002664] to-blue-500 rounded-[40px] flex items-center justify-center shadow-2xl shadow-blue-200"
-          >
-            <span className="text-white text-4xl font-bold">
-              {profile?.full_name?.[0] || user?.email?.[0].toUpperCase()}
-            </span>
-          </motion.div>
-          <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-white rounded-2xl shadow-lg flex items-center justify-center border-4 border-[#F8FAFC]">
-            <Camera className="h-4 w-4 text-slate-400" />
-          </div>
+        <div className="flex items-center gap-2">
+          {!isEditing ? (
+            <button 
+              onClick={() => setIsEditing(true)}
+              className="text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-full bg-zinc-100 hover:bg-zinc-200 transition-all"
+            >
+              Modifier
+            </button>
+          ) : (
+            <div className="flex gap-4">
+              <button onClick={() => setIsEditing(false)} className="text-zinc-400 hover:text-zinc-900 transition-colors">
+                <X className="h-5 w-5" />
+              </button>
+              <button onClick={handleSave} disabled={isSaving} className="text-zinc-900 hover:opacity-70 transition-colors">
+                {isSaving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="h-5 w-5" />}
+              </button>
+            </div>
+          )}
         </div>
+      </nav>
 
-        {/* FORMULAIRE / INFO */}
-        <div className="w-full max-w-sm space-y-8">
+      <main className="px-8 max-w-lg mx-auto">
+        {/* AVATAR & INFO DE BASE */}
+        <section className="mb-12">
+          <div className="w-20 h-20 bg-zinc-900 rounded-full flex items-center justify-center text-white text-2xl font-light mb-6">
+            {profile?.full_name?.[0] || user?.email?.[0].toUpperCase()}
+          </div>
+          <h1 className="text-3xl font-medium tracking-tight mb-1">
+            {profile?.full_name || 'Utilisateur'}
+          </h1>
+          <p className="text-zinc-400 text-sm font-light tracking-wide">{user?.email}</p>
+        </section>
+
+        {/* CHAMPS DE DONNÉES */}
+        <div className="space-y-10">
           <AnimatePresence mode="wait">
             {!isEditing ? (
               <motion.div 
-                key="view"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                className="space-y-6"
+                key="view" 
+                initial={{ opacity: 0, y: 10 }} 
+                animate={{ opacity: 1, y: 0 }} 
+                className="space-y-8"
               >
-                <InfoRow label="Nom de l'adhérent" value={profile?.full_name} icon={<User />} />
-                <InfoRow label="Email sécurisé" value={user?.email} icon={<Mail />} />
-                <InfoRow label="Téléphone" value={profile?.phone} icon={<Phone />} />
+                <div className="space-y-1">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-400">Nom complet</p>
+                  <p className="text-base text-zinc-800">{profile?.full_name || '—'}</p>
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-400">Téléphone</p>
+                  <p className="text-base text-zinc-800">{profile?.phone || '—'}</p>
+                </div>
               </motion.div>
             ) : (
               <motion.div 
-                key="edit"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="space-y-6"
+                key="edit" 
+                initial={{ opacity: 0, y: 10 }} 
+                animate={{ opacity: 1, y: 0 }} 
+                className="space-y-8"
               >
-                <InputWrapper label="Nom complet">
+                <div className="relative border-b border-zinc-200 pb-2 focus-within:border-zinc-900 transition-colors">
+                  <label className="text-[10px] uppercase tracking-[0.2em] text-zinc-400 block mb-1">Nom complet</label>
                   <input 
+                    autoFocus
                     value={formData.full_name}
                     onChange={(e) => setFormData({...formData, full_name: e.target.value})}
-                    className="w-full bg-transparent outline-none font-bold text-lg text-blue-900"
-                    placeholder="Ex: Anthony Ngami"
+                    className="w-full bg-transparent outline-none text-base py-1"
+                    placeholder="Votre nom"
                   />
-                </InputWrapper>
+                </div>
 
-                <InputWrapper label="Téléphone">
+                <div className="relative border-b border-zinc-200 pb-2 focus-within:border-zinc-900 transition-colors">
+                  <label className="text-[10px] uppercase tracking-[0.2em] text-zinc-400 block mb-1">Téléphone</label>
                   <input 
                     value={formData.phone}
                     onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                    className="w-full bg-transparent outline-none font-bold text-lg text-blue-900"
-                    placeholder="+242 06 XXX XX XX"
+                    className="w-full bg-transparent outline-none text-base py-1"
+                    placeholder="Votre numéro"
                   />
-                </InputWrapper>
-                
-                <Button 
-                  variant="ghost" 
-                  onClick={() => setIsEditing(false)}
-                  className="w-full text-slate-400 text-xs uppercase font-bold tracking-widest"
-                >
-                  <X className="h-3 w-3 mr-2" /> Annuler les modifs
-                </Button>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
 
-        {/* LOGOUT - POSITIONNÉ DANS LE FLUX MAIS FIXE VISUELLEMENT */}
-        <div className="mt-auto mb-12 w-full max-w-sm">
+        {/* ACTIONS SECONDAIRES */}
+        <section className="mt-24 pt-12 border-t border-zinc-50">
           <button 
             onClick={() => signOut()}
-            className="w-full py-4 px-6 bg-red-50 text-[#e30613] rounded-[24px] font-bold text-sm flex items-center justify-center gap-3 active:scale-95 transition-all"
+            className="flex items-center gap-3 text-red-500/80 hover:text-red-600 transition-colors text-sm font-medium"
           >
-            <LogOut className="h-5 w-5" />
-            Déconnexion de l'espace
+            <LogOut className="h-4 w-4" />
+            Déconnexion
           </button>
-        </div>
+        </section>
       </main>
 
-      {/* FOOTER SÉCURITÉ FIXE */}
-      <footer className="bg-slate-900 py-6 px-6 flex items-center justify-center gap-3">
-        <ShieldCheck className="h-4 w-4 text-blue-400" />
-        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-          Serveur Crypté MUCODEC
+      {/* PETIT INDICATEUR DE SÉCURITÉ */}
+      <footer className="fixed bottom-8 left-0 right-0 text-center">
+        <span className="text-[9px] uppercase tracking-[0.3em] text-zinc-300">
+          Chiffrement de bout en bout
         </span>
       </footer>
     </div>
   );
 };
-
-// COMPOSANTS RÉUTILISABLES INTERNES
-const InfoRow = ({ label, value, icon }: { label: string, value?: string, icon: React.ReactNode }) => (
-  <div className="flex items-center gap-4 p-4 bg-white rounded-[24px] shadow-sm border border-slate-50">
-    <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-blue-600 shadow-inner">
-      {icon}
-    </div>
-    <div>
-      <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-0.5">{label}</p>
-      <p className="text-sm font-bold text-slate-700">{value || '—'}</p>
-    </div>
-  </div>
-);
-
-const InputWrapper = ({ label, children }: { label: string, children: React.ReactNode }) => (
-  <div className="p-4 bg-white rounded-[24px] shadow-md border-2 border-blue-100 focus-within:border-blue-600 transition-all">
-    <p className="text-[9px] font-black uppercase tracking-wider text-blue-400 mb-1">{label}</p>
-    {children}
-  </div>
-);
 
 export default Profile;
