@@ -1,24 +1,36 @@
+import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { CreateCompanyDialog } from '@/components/CreateCompanyDialog';
 import { Button } from '@/components/ui/button';
-import { Building2, FileSpreadsheet, MessageSquare, History, ArrowRight, ShieldCheck, TrendingUp } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { 
+  Building2, 
+  FileSpreadsheet, 
+  MessageSquare, 
+  History, 
+  ArrowRight, 
+  ShieldCheck, 
+  LayoutDashboard,
+  Bell
+} from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const Dashboard = () => {
   const { companyUser } = useAuth();
+  const navigate = useNavigate();
 
   // Couleurs de la charte "Grande Banque"
   const colors = {
     deepBlue: "#00204E",
     actionBlue: "#0056D2",
-    crimson: "#D32F2F"
+    crimson: "#D32F2F",
+    bgLight: "#F8F9FA"
   };
 
-  const { data: stats } = useQuery({
+  const { data: stats, isLoading } = useQuery({
     queryKey: ['dashboard-stats', companyUser?.company_id],
     queryFn: async () => {
       if (!companyUser?.company_id) return null;
@@ -45,43 +57,41 @@ const Dashboard = () => {
     enabled: !!companyUser?.company_id,
   });
 
-  // Animation variants pour le chargement des cartes
-  const container = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: { staggerChildren: 0.1 }
-    }
-  };
+  // État de chargement (Skeleton mobile)
+  if (isLoading && companyUser) {
+    return (
+      <div className="min-h-screen bg-[#F8F9FA] p-4 space-y-4">
+        <div className="h-8 w-48 bg-slate-200 animate-pulse rounded mb-8" />
+        <div className="h-32 w-full bg-white rounded-xl animate-pulse" />
+        <div className="grid grid-cols-2 gap-4">
+          <div className="h-24 bg-white rounded-xl animate-pulse" />
+          <div className="h-24 bg-white rounded-xl animate-pulse" />
+        </div>
+      </div>
+    );
+  }
 
-  const item = {
-    hidden: { y: 20, opacity: 0 },
-    show: { y: 0, opacity: 1 }
-  };
-
+  // Écran d'initialisation (Entreprise manquante)
   if (!companyUser) {
     return (
-      <div className="min-h-[80vh] flex items-center justify-center p-6 bg-[#F8F9FA]">
-        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
-          <Card className="max-w-lg mx-auto border-none shadow-xl bg-white/90 backdrop-blur-sm">
-            <CardHeader className="text-center">
-              <div className="mx-auto w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-                <Building2 className="h-8 w-8 text-slate-400" />
+      <div className="min-h-screen flex items-center justify-center p-6 bg-[#F8F9FA]">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <Card className="border-none shadow-2xl bg-white overflow-hidden">
+            <div className="h-2 bg-[#00204E]" />
+            <div className="p-8 text-center">
+              <div className="mx-auto w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6">
+                <Building2 className="h-10 w-10 text-slate-400" />
               </div>
-              <CardTitle className="text-2xl font-bold" style={{ color: colors.deepBlue }}>Initialisation requise</CardTitle>
-              <CardDescription className="text-base">
-                Votre profil n'est rattaché à aucune entité juridique. 
-                Veuillez enregistrer votre entreprise pour accéder aux services bancaires.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
+              <h2 className="text-2xl font-bold mb-3" style={{ color: colors.deepBlue }}>Initialisation</h2>
+              <p className="text-slate-500 mb-8 leading-relaxed">
+                Pour accéder à vos services bancaires sécurisés, veuillez enregistrer votre entité juridique.
+              </p>
               <CreateCompanyDialog>
-                <Button className="w-full h-12 text-md transition-all hover:brightness-110" style={{ backgroundColor: colors.deepBlue }}>
-                  <Building2 className="h-5 w-5 mr-2" />
-                  Enregistrer mon entreprise
+                <Button className="w-full h-14 text-lg rounded-xl shadow-lg transition-transform active:scale-95" style={{ backgroundColor: colors.deepBlue }}>
+                  Enregistrer l'entreprise
                 </Button>
               </CreateCompanyDialog>
-            </CardContent>
+            </div>
           </Card>
         </motion.div>
       </div>
@@ -89,125 +99,144 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="p-6 md:p-10 space-y-8 max-w-7xl mx-auto">
-      {/* Header avec ligne de confiance */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-8">
+    <div className="min-h-screen bg-[#F8F9FA] pb-28">
+      {/* Barre de Status Mobile */}
+      <div className="bg-white px-6 pt-6 pb-4 flex justify-between items-end border-b border-slate-100 sticky top-0 z-20">
         <div>
-          <div className="flex items-center gap-2 text-[10px] font-bold text-blue-600 uppercase tracking-[0.2em] mb-2">
-            <ShieldCheck className="h-3 w-3" />
-            Connexion Sécurisée
+          <div className="flex items-center gap-1.5 text-[10px] font-bold text-blue-600 uppercase tracking-widest mb-1">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            Espace Sécurisé
           </div>
-          <h1 className="text-3xl font-bold tracking-tight" style={{ color: colors.deepBlue }}>
+          <h1 className="text-2xl font-black tracking-tight" style={{ color: colors.deepBlue }}>
             Tableau de Bord
           </h1>
-          <p className="text-slate-500 mt-1">
-            Gestion des actifs et flux de données pour <span className="font-semibold text-slate-700">Institution Partenaire</span>
-          </p>
         </div>
-        <div className="flex gap-2">
-            <div className="px-4 py-2 bg-white border border-slate-200 rounded-lg shadow-sm text-sm font-medium flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                Systèmes Opérationnels
-            </div>
+        <div className="relative p-2 bg-slate-50 rounded-full">
+          <Bell className="h-6 w-6 text-slate-400" />
+          {stats?.unreadMessages > 0 && (
+            <span className="absolute top-1.5 right-1.5 w-3 h-3 bg-red-500 border-2 border-white rounded-full" />
+          )}
         </div>
       </div>
 
-      {/* Grid de Cartes animées */}
-      <motion.div 
-        variants={container}
-        initial="hidden"
-        animate="show"
-        className="grid gap-6 md:grid-cols-2 lg:grid-cols-3"
-      >
-        {/* Action: Import */}
-        <motion.div variants={item}>
-            <Card className="group border-none shadow-sm hover:shadow-md transition-all duration-300 bg-white">
-            <CardHeader className="pb-3">
-                <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center mb-2 group-hover:bg-blue-600 transition-colors">
-                    <FileSpreadsheet className="h-5 w-5 text-blue-600 group-hover:text-white transition-colors" />
-                </div>
-                <CardTitle className="text-lg font-semibold text-slate-800">Transfert de Flux</CardTitle>
-                <CardDescription>Transmission sécurisée de vos fichiers Excel</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <Link to="/import">
-                <Button className="w-full justify-between hover:bg-slate-50" variant="outline">
-                    Nouvel import
-                    <ArrowRight className="h-4 w-4" />
-                </Button>
-                </Link>
-            </CardContent>
-            </Card>
-        </motion.div>
-
-        {/* Stats: Historique */}
-        <motion.div variants={item}>
-            <Card className="border-none shadow-sm bg-white">
-            <CardHeader className="pb-3">
-                <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center mb-2">
-                    <History className="h-5 w-5 text-slate-600" />
-                </div>
-                <CardTitle className="text-lg font-semibold text-slate-800">Archives</CardTitle>
-                <CardDescription>
-                    <span className="text-2xl font-bold block text-slate-900 mt-1">{stats?.totalImports || 0}</span>
-                    Documents traités au total
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <Link to="/history">
-                <Button className="w-full justify-between" variant="ghost">
-                    Consulter les archives
-                    <ArrowRight className="h-4 w-4" />
-                </Button>
-                </Link>
-            </CardContent>
-            </Card>
-        </motion.div>
-
-        {/* Support: Messages */}
-        <motion.div variants={item}>
-            <Card className="border-none shadow-sm bg-white overflow-hidden relative">
-              {stats?.unreadMessages ? (
-                <div className="absolute top-0 right-0 w-24 h-24 -mr-8 -mt-8 bg-red-50 rounded-full flex items-end justify-center pb-4 pr-4">
-                     <span className="text-red-600 font-bold text-sm animate-bounce">!</span>
-                </div>
-              ) : null}
-            <CardHeader className="pb-3">
-                <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center mb-2">
-                    <MessageSquare className="h-5 w-5 text-red-600" />
-                </div>
-                <CardTitle className="text-lg font-semibold text-slate-800 flex items-center gap-2">
-                    Assistance 24/7
-                </CardTitle>
-                <CardDescription>
-                    {stats?.unreadMessages 
-                        ? `${stats.unreadMessages} message(s) en attente de lecture`
-                        : "Votre conseiller est disponible"}
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <Link to="/support">
-                <Button 
-                    className="w-full text-white" 
-                    style={{ backgroundColor: stats?.unreadMessages ? colors.crimson : colors.deepBlue }}
-                >
-                    Accéder au Support
-                </Button>
-                </Link>
-            </CardContent>
-            </Card>
-        </motion.div>
-      </motion.div>
-
-      {/* Footer minimaliste style Windows */}
-      <footer className="pt-10 flex flex-col md:flex-row justify-between items-center gap-4 text-[11px] text-slate-400 border-t border-slate-100">
-        <div className="flex gap-6">
-          <span className="hover:text-slate-600 cursor-pointer transition-colors">POLITIQUE DE CONFIDENTIALITÉ</span>
-          <span className="hover:text-slate-600 cursor-pointer transition-colors">CONDITIONS GÉNÉRALES</span>
-          <span className="hover:text-slate-600 cursor-pointer transition-colors">SÉCURITÉ</span>
+      <div className="p-4 space-y-6 max-w-md mx-auto">
+        
+        {/* Info Société */}
+        <div className="flex items-center gap-3 px-1">
+          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+          <p className="text-sm text-slate-600 font-medium truncate">
+            Connecté : <span className="text-slate-900">Institution Partenaire</span>
+          </p>
         </div>
-        <p>© 2026 GROUPE FINANCIER INTERNATIONAL. TOUS DROITS RÉSERVÉS.</p>
-      </footer>
+
+        {/* Action Principale : Import */}
+        <motion.div 
+          whileTap={{ scale: 0.97 }}
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+        >
+          <Link to="/import">
+            <Card className="border-none shadow-md bg-white active:bg-slate-50 transition-colors">
+              <CardContent className="p-5 flex items-center">
+                <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center mr-4 shadow-inner">
+                  <FileSpreadsheet className="h-7 w-7 text-blue-600" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-lg text-slate-800 leading-tight">Transfert de Flux</h3>
+                  <p className="text-sm text-slate-500">Nouveau fichier Excel</p>
+                </div>
+                <div className="bg-slate-50 p-2 rounded-full">
+                  <ArrowRight className="h-5 w-5 text-slate-400" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        </motion.div>
+
+        {/* Grid Stats & Support */}
+        <div className="grid grid-cols-2 gap-4">
+          {/* Historique */}
+          <motion.div 
+            whileTap={{ scale: 0.95 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <Link to="/history">
+              <Card className="border-none shadow-sm p-5 bg-white h-full flex flex-col justify-between">
+                <History className="h-6 w-6 text-slate-400 mb-4" />
+                <div>
+                  <span className="text-3xl font-black block text-slate-900">{stats?.totalImports || 0}</span>
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Archives</span>
+                </div>
+              </Card>
+            </Link>
+          </motion.div>
+
+          {/* Support */}
+          <motion.div 
+            whileTap={{ scale: 0.95 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <Link to="/support">
+              <Card className={`border-none shadow-sm p-5 h-full flex flex-col justify-between transition-colors ${stats?.unreadMessages ? 'bg-red-50 ring-1 ring-red-100' : 'bg-white'}`}>
+                <MessageSquare className={`h-6 w-6 ${stats?.unreadMessages ? 'text-red-600' : 'text-slate-400'} mb-4`} />
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-3xl font-black block text-slate-900">
+                      {stats?.unreadMessages || 0}
+                    </span>
+                    {stats?.unreadMessages > 0 && (
+                       <span className="flex h-2 w-2 rounded-full bg-red-600 animate-ping" />
+                    )}
+                  </div>
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Messages</span>
+                </div>
+              </Card>
+            </Link>
+          </motion.div>
+        </div>
+
+        {/* Aide Rapide / Footer */}
+        <div className="pt-4 px-1">
+          <p className="text-[11px] text-slate-400 uppercase font-bold tracking-widest mb-4">Assistance Rapide</p>
+          <div className="space-y-3">
+             {['Guide de sécurité', 'Contacter mon conseiller', 'FAQ'].map((item) => (
+               <div key={item} className="flex items-center justify-between p-3 bg-white rounded-lg text-sm font-medium text-slate-700 shadow-sm">
+                 {item}
+                 <ArrowRight className="h-4 w-4 text-slate-300" />
+               </div>
+             ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Navigation Bar (Mobile Bottom Nav) */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-t border-slate-200 px-8 py-3 flex justify-between items-center z-50 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+        <button onClick={() => navigate('/')} className="flex flex-col items-center gap-1 group">
+          <LayoutDashboard className="h-6 w-6 text-[#00204E]" />
+          <span className="text-[10px] font-bold text-[#00204E]">Dashboard</span>
+        </button>
+        <button onClick={() => navigate('/import')} className="flex flex-col items-center gap-1 group">
+          <FileSpreadsheet className="h-6 w-6 text-slate-400 group-active:text-[#0056D2]" />
+          <span className="text-[10px] font-medium text-slate-400">Flux</span>
+        </button>
+        <button onClick={() => navigate('/history')} className="flex flex-col items-center gap-1 group">
+          <History className="h-6 w-6 text-slate-400 group-active:text-[#0056D2]" />
+          <span className="text-[10px] font-medium text-slate-400">Archives</span>
+        </button>
+        <button onClick={() => navigate('/support')} className="flex flex-col items-center gap-1 group relative">
+          <MessageSquare className="h-6 w-6 text-slate-400 group-active:text-[#0056D2]" />
+          <span className="text-[10px] font-medium text-slate-400">Support</span>
+          {stats?.unreadMessages > 0 && (
+            <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[9px] w-4 h-4 flex items-center justify-center rounded-full font-bold">
+              {stats.unreadMessages}
+            </span>
+          )}
+        </button>
+      </nav>
     </div>
   );
 };
