@@ -93,14 +93,14 @@ export const WelcomeCover = ({ onFinished }: WelcomeCoverProps) => {
             </motion.div>
 
             <div className="grid grid-cols-3 gap-3">
-              <FeatureCard icon={<Coins size={20} />} label="Solde" delay={0.5} />
+              <FeatureCard icon={<Coins size={20} />} label="historique" delay={0.5} />
               <FeatureCard icon={<ShieldCheck size={20} />} label="Sécurité" delay={0.6} />
-              <FeatureCard icon={<FileText size={20} />} label="Relevés" delay={0.7} />
+              <FeatureCard icon={<FileText size={20} />} label="Rapidité" delay={0.7} />
             </div>
 
             <motion.div className="space-y-2 pt-2">
               <SecurityBadge text="Cryptage militaire AES-256" />
-              <SecurityBadge text="Garantie des dépôts" />
+              <SecurityBadge text="fiche conforme" />
             </motion.div>
           </div>
 
