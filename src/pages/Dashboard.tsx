@@ -4,15 +4,13 @@ import { CreateCompanyDialog } from '@/components/CreateCompanyDialog';
 import { Button } from '@/components/ui/button';
 import { 
   Building2, 
-  FileSpreadsheet, 
-  MessageSquare, 
-  History, 
   ShieldCheck, 
-  Bell,
   Plus,
+  History,
+  MessageSquare,
   ChevronRight
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
@@ -37,7 +35,6 @@ const Dashboard = () => {
     enabled: !!companyUser?.company_id,
   });
 
-  // Écran d'attente ou d'initialisation sans scroll
   if (!companyUser && !isLoading) {
     return (
       <div className="h-screen w-full bg-[#0A0F1E] flex items-center justify-center p-6 overflow-hidden text-center">
@@ -58,24 +55,19 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="h-screen w-full bg-[#0A0F1E] text-slate-200 flex flex-col overflow-hidden">
+    <div className="h-screen w-full bg-[#0A0F1E] text-slate-200 flex flex-col overflow-hidden fixed inset-0">
       
-      {/* HEADER FIXE (SANS SCROLL) */}
-      <header className="px-6 pt-8 pb-4 flex justify-between items-center shrink-0">
+      {/* HEADER SANS CLOCHE */}
+      <header className="px-6 pt-10 pb-4 flex justify-between items-center shrink-0">
         <div className="space-y-1">
-          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-500">MUCODEC PAIE </p>
+          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-500">MUCODEC PAIE</p>
           <h1 className="text-2xl font-bold text-white tracking-tight">Espace Client</h1>
         </div>
-        <div className="h-12 w-12 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center relative active:scale-90 transition-transform">
-          <Bell className="h-5 w-5 text-slate-400" />
-          {stats?.unreadMessages > 0 && (
-            <span className="absolute top-3 right-3 w-2 h-2 bg-red-500 rounded-full shadow-[0_0_10px_rgba(239,68,68,0.5)]" />
-          )}
-        </div>
+        {/* L'icône de la cloche a été retirée ici */}
       </header>
 
-      {/* CONTENU PRINCIPAL (ADAPTATIF) */}
-      <main className="flex-1 px-6 flex flex-col justify-center space-y-6 min-h-0 overflow-hidden">
+      {/* CONTENU PRINCIPAL (PAS DE SCROLL) */}
+      <main className="flex-1 px-6 flex flex-col justify-center space-y-6 min-h-0">
         
         {/* Wallet Card */}
         <div className="relative overflow-hidden rounded-[32px] bg-gradient-to-br from-blue-700 to-blue-900 p-6 shadow-2xl shadow-blue-900/20 shrink-0">
@@ -103,12 +95,11 @@ const Dashboard = () => {
           <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
         </div>
 
-        {/* Quick Actions (Tient sur l'écran sans scroll) */}
+        {/* Quick Actions */}
         <div className="space-y-3">
           <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] px-1">Accès Rapides</h3>
           
           <div className="grid gap-3">
-            {/* Bouton Historique */}
             <motion.div 
               whileTap={{ scale: 0.97 }} 
               onClick={() => navigate('/history')}
@@ -124,7 +115,6 @@ const Dashboard = () => {
               <ChevronRight className="h-5 w-5 text-slate-700" />
             </motion.div>
 
-            {/* Bouton Support */}
             <motion.div 
               whileTap={{ scale: 0.97 }} 
               onClick={() => navigate('/support')}
@@ -147,7 +137,7 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Security Alert Badge (Positionné en bas du bloc principal) */}
+        {/* Security Badge */}
         <div className="p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/10 flex items-center gap-3 shrink-0">
           <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
           <p className="text-[10px] text-emerald-500/80 font-bold uppercase tracking-widest italic">
@@ -156,8 +146,8 @@ const Dashboard = () => {
         </div>
       </main>
 
-      {/* FOOTER DISCRET (SANS BARRE DE NAVIGATION) */}
-      <footer className="p-6 pt-2 shrink-0 text-center">
+      {/* FOOTER */}
+      <footer className="p-8 pt-2 shrink-0 text-center">
         <p className="text-[9px] text-slate-700 font-medium uppercase tracking-[0.4em]">
           MUCODEC 2026 .COM
         </p>
