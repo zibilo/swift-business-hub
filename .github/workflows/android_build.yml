@@ -28,34 +28,52 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
 
-      - name: Setup Capacitor Electron
+      - name: Initialize Capacitor Electron
         run: |
-          # Installation du module si absent et création du dossier
           npm install @capacitor-community/electron
-          npx cap add @capacitor-community/electron
-
-      - name: Patch and Build Electron
-        shell: pwsh
-        run: |
-          # 1. Correction du tsconfig dans le dossier généré
-          $path = "electron/tsconfig.json"
-          if (Test-Path $path) {
-            $config = Get-Content $path | ConvertFrom-Json
-            $config.compilerOptions.skipLibCheck = $true
-            $config.compilerOptions.strict = $false
-            $config | ConvertTo-Json | Set-Content $path
+          if (!(Test-Path "electron")) {
+            npx cap add @capacitor-community/electron
           }
 
-          # 2. Installation des dépendances INTERNES à Electron
+      - name: Force Patch TSConfig
+        # On ecrase le fichier par une version propre pour eviter les erreurs de parsing
+        shell: pwsh
+        run: |
+          $tsconfig = @"
+          {
+            "compilerOptions": {
+              "target": "ESNext",
+              "module": "CommonJS",
+              "allowJs": true,
+              "skipLibCheck": true,
+              "esModuleInterop": true,
+              "noImplicitAny": false,
+              "sourceMap": false,
+              "outDir": "dist",
+              "moduleResolution": "node",
+              "resolveJsonModule": true,
+              "strict": false
+            },
+            "include": ["src/**/*.ts", "src/**/*.js"],
+            "exclude": ["node_modules"]
+          }
+          "@
+          $tsconfig | Set-Content -Path "electron/tsconfig.json"
+          Write-Host "TSConfig forced with skipLibCheck: true"
+
+      - name: Build and Sync Electron
+        shell: pwsh
+        run: |
+          # Installation des dependances dans le dossier electron
           cd electron
           npm install --legacy-peer-deps
           npm install @types/node@20 --save-dev
-
-          # 3. Synchronisation Capacitor
+          
+          # Synchronisation des fichiers web vers Electron
           cd ..
           npx cap sync @capacitor-community/electron
-
-          # 4. Lancement du build final du .exe (Commande directe)
+          
+          # Compilation et creation du .exe
           cd electron
           npx tsc --skipLibCheck || echo "Warnings ignored"
           npm run electron:make
