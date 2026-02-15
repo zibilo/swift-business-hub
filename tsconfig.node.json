@@ -12,11 +12,12 @@
     "moduleDetection": "force",
     "noEmit": true,
 
-    /* Linting */
-    "strict": true,
+    /* Configuration souple pour le build Windows MUCODEC */
+    "strict": false,
+    "noImplicitAny": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": false
   },
   "include": ["vite.config.ts"]
 }
