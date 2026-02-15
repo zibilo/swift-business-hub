@@ -35,20 +35,27 @@ jobs:
             npx cap add @capacitor-community/electron
           }
 
-      - name: Patch Electron Files (Name & Config)
-        # On corrige le nom invalide et le TSConfig en une seule étape
+      - name: Patch Electron Files (Name, Repo & Config)
         shell: pwsh
         run: |
-          # 1. Fix du nom invalide dans package.json (Supprime les espaces et majuscules)
           $pkgPath = "electron/package.json"
           if (Test-Path $pkgPath) {
             $pkg = Get-Content $pkgPath | ConvertFrom-Json
+            
+            # 1. Correction du nom (pas d'espaces)
             $pkg.name = "mucodec-espace-entreprise"
+            
+            # 2. Ajout de l'URL du dépôt (requis par electron-builder)
+            $pkg.repository = "https://github.com/${{ github.repository }}"
+            
+            # 3. Modification du script de build pour éviter l'erreur de publication (-p never)
+            $pkg.scripts."electron:make" = "npm run build && electron-builder build -c ./electron-builder.config.json -p never"
+            
             $pkg | ConvertTo-Json | Set-Content $pkgPath
-            Write-Host "Fixed invalid package name in electron/package.json"
+            Write-Host "Fixed package.json: Name, Repo and Build script updated."
           }
 
-          # 2. Fix du TSConfig
+          # 4. Patch du TSConfig
           $tsconfig = @"
           {
             "compilerOptions": {
@@ -82,8 +89,8 @@ jobs:
           npx cap sync @capacitor-community/electron
           
           cd electron
-          # Force la compilation malgré les warnings
           npx tsc --skipLibCheck || echo "Warnings ignored"
+          # Utilise le script patché avec -p never
           npm run electron:make
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
@@ -95,5 +102,6 @@ jobs:
         with:
           name: MUCODEC-Windows-Installer
           path: |
+            electron/dist/*.exe
             electron/out/make/*.exe
             electron/out/make/squirrel.windows/x64/*.exe
