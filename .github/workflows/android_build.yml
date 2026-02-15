@@ -35,27 +35,24 @@ jobs:
             npx cap add @capacitor-community/electron
           }
 
-      - name: Patch Electron Files (Name, Repo & Config)
+      - name: Patch Electron Files (Name, Entry & Config)
         shell: pwsh
         run: |
+          # 1. Correction du package.json (Nom, Repo, et surtout le POINT D'ENTREE 'main')
           $pkgPath = "electron/package.json"
           if (Test-Path $pkgPath) {
             $pkg = Get-Content $pkgPath | ConvertFrom-Json
-            
-            # 1. Correction du nom (pas d'espaces)
             $pkg.name = "mucodec-espace-entreprise"
-            
-            # 2. Ajout de l'URL du dépôt (requis par electron-builder)
             $pkg.repository = "https://github.com/${{ github.repository }}"
-            
-            # 3. Modification du script de build pour éviter l'erreur de publication (-p never)
-            $pkg.scripts."electron:make" = "npm run build && electron-builder build -c ./electron-builder.config.json -p never"
-            
+            # On force le point d'entrée là où tsc va compiler
+            $pkg.main = "build/index.js" 
+            # On simplifie le script de build pour éviter les conflits
+            $pkg.scripts."electron:make" = "electron-builder build -c ./electron-builder.config.json -p never"
             $pkg | ConvertTo-Json | Set-Content $pkgPath
-            Write-Host "Fixed package.json: Name, Repo and Build script updated."
+            Write-Host "Fixed package.json: main set to build/index.js"
           }
 
-          # 4. Patch du TSConfig
+          # 2. Patch du TSConfig pour envoyer le résultat dans 'build'
           $tsconfig = @"
           {
             "compilerOptions": {
@@ -66,17 +63,18 @@ jobs:
               "esModuleInterop": true,
               "noImplicitAny": false,
               "sourceMap": false,
-              "outDir": "dist",
+              "outDir": "build",
+              "rootDir": "src",
               "moduleResolution": "node",
               "resolveJsonModule": true,
               "strict": false
             },
-            "include": ["src/**/*.ts", "src/**/*.js"],
+            "include": ["src/**/*.ts"],
             "exclude": ["node_modules"]
           }
           "@
           $tsconfig | Set-Content -Path "electron/tsconfig.json"
-          Write-Host "TSConfig patched."
+          Write-Host "TSConfig forced to output in 'build' folder."
 
       - name: Build and Sync Electron
         shell: pwsh
@@ -89,9 +87,18 @@ jobs:
           npx cap sync @capacitor-community/electron
           
           cd electron
-          npx tsc --skipLibCheck || echo "Warnings ignored"
-          # Utilise le script patché avec -p never
-          npm run electron:make
+          # On lance la compilation TS manuellement
+          Write-Host "Compiling TypeScript..."
+          npx tsc --skipLibCheck
+          
+          # On verifie que le fichier index.js existe bien avant de lancer electron-builder
+          if (Test-Path "build/index.js") {
+            Write-Host "Success: build/index.js found. Starting packaging..."
+            npm run electron:make
+          } else {
+            Write-Error "Critical: build/index.js NOT FOUND. TSC failed."
+            exit 1
+          }
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
