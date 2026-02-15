@@ -1,10 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { 
-  User, Mail, Phone, Save, Loader2, 
-  X, Edit3, LogOut, ArrowLeft, Check
+  X, Loader2, LogOut, ArrowLeft, Check, 
+  User, Phone, ShieldCheck 
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -40,28 +38,28 @@ const Profile = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white text-zinc-900 font-sans antialiased">
+    <div className="h-screen w-full bg-[#0A0F1E] text-slate-200 flex flex-col overflow-hidden fixed inset-0">
       
-      {/* HEADER MINIMALISTE */}
-      <nav className="flex items-center justify-between px-6 py-8">
-        <button onClick={() => window.history.back()} className="text-zinc-400 hover:text-zinc-900 transition-colors">
+      {/* HEADER FIXE */}
+      <nav className="flex items-center justify-between px-6 pt-10 pb-4 shrink-0">
+        <button onClick={() => window.history.back()} className="h-10 w-10 flex items-center justify-center rounded-xl bg-slate-900 border border-slate-800 text-slate-400 active:scale-90 transition-transform">
           <ArrowLeft className="h-5 w-5" />
         </button>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center">
           {!isEditing ? (
             <button 
               onClick={() => setIsEditing(true)}
-              className="text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-full bg-zinc-100 hover:bg-zinc-200 transition-all"
+              className="text-[10px] font-black uppercase tracking-[0.2em] px-5 py-2.5 rounded-xl bg-blue-600 text-white shadow-lg active:scale-95 transition-all"
             >
               Modifier
             </button>
           ) : (
-            <div className="flex gap-4">
-              <button onClick={() => setIsEditing(false)} className="text-zinc-400 hover:text-zinc-900 transition-colors">
+            <div className="flex gap-3">
+              <button onClick={() => setIsEditing(false)} className="h-10 w-10 flex items-center justify-center rounded-xl bg-slate-900 border border-slate-800 text-slate-400 active:scale-90 transition-transform">
                 <X className="h-5 w-5" />
               </button>
-              <button onClick={handleSave} disabled={isSaving} className="text-zinc-900 hover:opacity-70 transition-colors">
+              <button onClick={handleSave} disabled={isSaving} className="h-10 w-10 flex items-center justify-center rounded-xl bg-emerald-600 text-white shadow-lg active:scale-90 transition-transform">
                 {isSaving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="h-5 w-5" />}
               </button>
             </div>
@@ -69,63 +67,72 @@ const Profile = () => {
         </div>
       </nav>
 
-      <main className="px-8 max-w-lg mx-auto">
-        {/* AVATAR & INFO DE BASE */}
-        <section className="mb-12">
-          <div className="w-20 h-20 bg-zinc-900 rounded-full flex items-center justify-center text-white text-2xl font-light mb-6">
-            {profile?.full_name?.[0] || user?.email?.[0].toUpperCase()}
+      <main className="flex-1 px-8 flex flex-col justify-center min-h-0">
+        {/* AVATAR & IDENTITÉ */}
+        <section className="text-center mb-12">
+          <div className="relative inline-block">
+            <div className="w-24 h-24 bg-gradient-to-br from-blue-600 to-blue-800 rounded-[32px] flex items-center justify-center text-white text-3xl font-bold shadow-2xl mb-6 mx-auto">
+              {profile?.full_name?.[0] || user?.email?.[0].toUpperCase()}
+            </div>
+            <div className="absolute -bottom-1 -right-1 bg-[#0A0F1E] p-1.5 rounded-xl">
+               <div className="bg-emerald-500 h-3 w-3 rounded-full border-2 border-[#0A0F1E]" />
+            </div>
           </div>
-          <h1 className="text-3xl font-medium tracking-tight mb-1">
+          <h1 className="text-2xl font-bold text-white tracking-tight mb-1">
             {profile?.full_name || 'Utilisateur'}
           </h1>
-          <p className="text-zinc-400 text-sm font-light tracking-wide">{user?.email}</p>
+          <p className="text-slate-500 text-xs font-medium tracking-wider">{user?.email}</p>
         </section>
 
-        {/* CHAMPS DE DONNÉES */}
-        <div className="space-y-10">
+        {/* FORMULAIRE (ADAPTATIF SANS SCROLL) */}
+        <div className="space-y-6">
           <AnimatePresence mode="wait">
             {!isEditing ? (
               <motion.div 
                 key="view" 
-                initial={{ opacity: 0, y: 10 }} 
-                animate={{ opacity: 1, y: 0 }} 
-                className="space-y-8"
+                initial={{ opacity: 0, scale: 0.95 }} 
+                animate={{ opacity: 1, scale: 1 }} 
+                className="space-y-4"
               >
-                <div className="space-y-1">
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-400">Nom complet</p>
-                  <p className="text-base text-zinc-800">{profile?.full_name || '—'}</p>
+                <div className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800 flex items-center gap-4">
+                  <User className="h-5 w-5 text-blue-500" />
+                  <div>
+                    <p className="text-[9px] uppercase tracking-widest text-slate-500 font-bold">Nom complet</p>
+                    <p className="text-sm text-slate-200 font-semibold">{profile?.full_name || 'Non renseigné'}</p>
+                  </div>
                 </div>
 
-                <div className="space-y-1">
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-400">Téléphone</p>
-                  <p className="text-base text-zinc-800">{profile?.phone || '—'}</p>
+                <div className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800 flex items-center gap-4">
+                  <Phone className="h-5 w-5 text-blue-500" />
+                  <div>
+                    <p className="text-[9px] uppercase tracking-widest text-slate-500 font-bold">Téléphone</p>
+                    <p className="text-sm text-slate-200 font-semibold">{profile?.phone || 'Non renseigné'}</p>
+                  </div>
                 </div>
               </motion.div>
             ) : (
               <motion.div 
                 key="edit" 
-                initial={{ opacity: 0, y: 10 }} 
-                animate={{ opacity: 1, y: 0 }} 
-                className="space-y-8"
+                initial={{ opacity: 0, scale: 0.95 }} 
+                animate={{ opacity: 1, scale: 1 }} 
+                className="space-y-4"
               >
-                <div className="relative border-b border-zinc-200 pb-2 focus-within:border-zinc-900 transition-colors">
-                  <label className="text-[10px] uppercase tracking-[0.2em] text-zinc-400 block mb-1">Nom complet</label>
+                <div className="p-4 rounded-2xl bg-slate-800/30 border-2 border-blue-600/30 focus-within:border-blue-600 transition-all">
+                  <label className="text-[9px] uppercase tracking-widest text-blue-500 font-black block mb-1">Nom complet</label>
                   <input 
                     autoFocus
                     value={formData.full_name}
                     onChange={(e) => setFormData({...formData, full_name: e.target.value})}
-                    className="w-full bg-transparent outline-none text-base py-1"
-                    placeholder="Votre nom"
+                    className="w-full bg-transparent outline-none text-white font-semibold text-sm"
                   />
                 </div>
 
-                <div className="relative border-b border-zinc-200 pb-2 focus-within:border-zinc-900 transition-colors">
-                  <label className="text-[10px] uppercase tracking-[0.2em] text-zinc-400 block mb-1">Téléphone</label>
+                <div className="p-4 rounded-2xl bg-slate-800/30 border-2 border-blue-600/30 focus-within:border-blue-600 transition-all">
+                  <label className="text-[9px] uppercase tracking-widest text-blue-500 font-black block mb-1">Téléphone</label>
                   <input 
                     value={formData.phone}
                     onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                    className="w-full bg-transparent outline-none text-base py-1"
-                    placeholder="Votre numéro"
+                    className="w-full bg-transparent outline-none text-white font-semibold text-sm"
                   />
                 </div>
               </motion.div>
@@ -133,24 +140,26 @@ const Profile = () => {
           </AnimatePresence>
         </div>
 
-        {/* ACTIONS SECONDAIRES */}
-        <section className="mt-24 pt-12 border-t border-zinc-50">
-          <button 
-            onClick={() => signOut()}
-            className="flex items-center gap-3 text-red-500/80 hover:text-red-600 transition-colors text-sm font-medium"
-          >
-            <LogOut className="h-4 w-4" />
-            Déconnexion
-          </button>
-        </section>
+        {/* LOGOUT */}
+        <button 
+          onClick={() => signOut()}
+          className="mt-12 flex items-center justify-center gap-2 text-red-500/80 active:text-red-500 transition-colors text-xs font-black uppercase tracking-widest"
+        >
+          <LogOut className="h-4 w-4" />
+          Déconnexion sécurisée
+        </button>
       </main>
 
-      {/* PETIT INDICATEUR DE SÉCURITÉ */}
-      <footer className="fixed bottom-8 left-0 right-0 text-center">
-        <span className="text-[9px] uppercase tracking-[0.3em] text-zinc-300">
-          Chiffrement de bout en bout
-        </span>
+      {/* FOOTER INDICATEUR */}
+      <footer className="p-8 shrink-0 flex flex-col items-center gap-2">
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/5 border border-emerald-500/10">
+          <ShieldCheck className="h-3 w-3 text-emerald-500" />
+          <span className="text-[8px] uppercase tracking-[0.2em] text-emerald-500/80 font-bold">
+            Données cryptées Mucodec
+          </span>
+        </div>
       </footer>
+
     </div>
   );
 };
