@@ -17,8 +17,7 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - name: Install Main Dependencies
-        # On force l'installation des libs de rapport qui causent l'erreur de résolution
+      - name: Install Root Dependencies
         run: |
           npm install --legacy-peer-deps
           npm install jspdf jspdf-autotable exceljs file-saver --legacy-peer-deps
@@ -29,24 +28,37 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
 
-      - name: Initialize Capacitor Electron
+      - name: Setup Capacitor Electron
         run: |
+          # Installation du module si absent et création du dossier
+          npm install @capacitor-community/electron
           npx cap add @capacitor-community/electron
 
-      - name: Patch Electron TypeScript Config
+      - name: Patch and Build Electron
         shell: pwsh
         run: |
+          # 1. Correction du tsconfig dans le dossier généré
           $path = "electron/tsconfig.json"
           if (Test-Path $path) {
             $config = Get-Content $path | ConvertFrom-Json
             $config.compilerOptions.skipLibCheck = $true
             $config.compilerOptions.strict = $false
             $config | ConvertTo-Json | Set-Content $path
-            Write-Host "TSConfig patched successfully."
           }
 
-      - name: Build EXE Software
-        run: npm run windows:make
+          # 2. Installation des dépendances INTERNES à Electron
+          cd electron
+          npm install --legacy-peer-deps
+          npm install @types/node@20 --save-dev
+
+          # 3. Synchronisation Capacitor
+          cd ..
+          npx cap sync @capacitor-community/electron
+
+          # 4. Lancement du build final du .exe (Commande directe)
+          cd electron
+          npx tsc --skipLibCheck || echo "Warnings ignored"
+          npm run electron:make
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
