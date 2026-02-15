@@ -35,10 +35,20 @@ jobs:
             npx cap add @capacitor-community/electron
           }
 
-      - name: Force Patch TSConfig
-        # On ecrase le fichier par une version propre pour eviter les erreurs de parsing
+      - name: Patch Electron Files (Name & Config)
+        # On corrige le nom invalide et le TSConfig en une seule étape
         shell: pwsh
         run: |
+          # 1. Fix du nom invalide dans package.json (Supprime les espaces et majuscules)
+          $pkgPath = "electron/package.json"
+          if (Test-Path $pkgPath) {
+            $pkg = Get-Content $pkgPath | ConvertFrom-Json
+            $pkg.name = "mucodec-espace-entreprise"
+            $pkg | ConvertTo-Json | Set-Content $pkgPath
+            Write-Host "Fixed invalid package name in electron/package.json"
+          }
+
+          # 2. Fix du TSConfig
           $tsconfig = @"
           {
             "compilerOptions": {
@@ -59,22 +69,20 @@ jobs:
           }
           "@
           $tsconfig | Set-Content -Path "electron/tsconfig.json"
-          Write-Host "TSConfig forced with skipLibCheck: true"
+          Write-Host "TSConfig patched."
 
       - name: Build and Sync Electron
         shell: pwsh
         run: |
-          # Installation des dependances dans le dossier electron
           cd electron
           npm install --legacy-peer-deps
           npm install @types/node@20 --save-dev
           
-          # Synchronisation des fichiers web vers Electron
           cd ..
           npx cap sync @capacitor-community/electron
           
-          # Compilation et creation du .exe
           cd electron
+          # Force la compilation malgré les warnings
           npx tsc --skipLibCheck || echo "Warnings ignored"
           npm run electron:make
         env:
