@@ -12,9 +12,12 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "sync": "cap sync android",
-    "android:build": "npm run build && npm run sync && cd android && ./gradlew assembleRelease"
+    "android:build": "npm run build && npm run sync && cd android && ./gradlew assembleRelease",
+    "windows:sync": "npx cap sync @capacitor-community/electron",
+    "windows:make": "cd electron && npm install && npm run electron:make"
   },
   "dependencies": {
+    "@capacitor-community/electron": "^5.0.1",
     "@capacitor/android": "^6.0.0",
     "@capacitor/cli": "^6.0.0",
     "@capacitor/core": "^6.0.0",
@@ -63,6 +66,8 @@
     "file-saver": "^2.0.5",
     "framer-motion": "^11.11.0",
     "input-otp": "^1.2.4",
+    "jspdf": "^2.5.1",
+    "jspdf-autotable": "^3.8.2",
     "lucide-react": "^0.454.0",
     "next-themes": "^0.3.0",
     "react": "^18.3.1",
