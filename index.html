@@ -1,22 +1,47 @@
 <!doctype html>
-<html lang="en">
+<html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- TODO: Set the document title to the name of your application -->
-    <title>Mucodec Paie </title>
-    <meta name="description" content="Ngami mporo" />
-    <meta name="author" content="Lovable" />
+    
+    <!-- DÉSACTIVATION DU ZOOM : On fixe l'échelle à 1.0 et on interdit l'utilisateur de zoomer -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    
+    <title>MUCODEC - Espace Entreprise</title>
+    <meta name="description" content="Gestion sécurisée des flux de paie MUCODEC" />
+    <meta name="author" content="MUCODEC" />
 
-    <!-- TODO: Update og:title to match your application name -->
-    <meta property="og:title" content="Lovable App" />
-    <meta property="og:description" content="Ngami mporo" />
+    <!-- OPTIMISATION PWA / MOBILE (Pour le fonctionnement hors-ligne) -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#00204E"> <!-- Bleu institutionnel MUCODEC -->
+
+    <!-- Open Graph (Partage reseaux sociaux) -->
+    <meta property="og:title" content="MUCODEC Espace Entreprise" />
+    <meta property="og:description" content="Transmettez vos fichiers de paie en toute sécurité." />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="" />
+    <meta property="og:image" content="/resources_electron/icon.png" />
 
+    <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@Lovable" />
-    <meta name="twitter:image" content="" />
+    <meta name="twitter:image" content="/resources_electron/icon.png" />
+
+    <!-- STYLE CRITIQUE POUR LE HORS-LIGNE (Evite le flash blanc au démarrage) -->
+    <style>
+      html, body {
+        background-color: #F8FAFC;
+        margin: 0;
+        padding: 0;
+        /* Empêche les rebonds de défilement sur iOS */
+        overscroll-behavior: none;
+        /* Désactive la sélection de texte pour faire plus "App" */
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      #root {
+        height: 100vh;
+        width: 100vw;
+      }
+    </style>
   </head>
 
   <body>
