@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button'; // Ajout de Button
 import { 
   Building2, 
   FileSpreadsheet, 
@@ -11,7 +12,8 @@ import {
   Loader2, 
   ArrowRight,
   ShieldCheck,
-  CheckCircle2
+  CheckCircle2,
+  RefreshCw // Ajout de l'icône Refresh
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -28,7 +30,6 @@ const ActionCard = ({ title, desc, icon, link, color }: any) => (
             "h-14 w-14 md:h-20 md:w-20 rounded-2xl md:rounded-3xl flex items-center justify-center text-white shadow-lg shrink-0", 
             color
           )}>
-            {/* Icône plus petite sur mobile */}
             {icon}
           </div>
           <div className="flex-1 min-w-0">
@@ -47,7 +48,7 @@ const Dashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isLinking, setIsLinking] = useState<string | null>(null);
 
-  const { data: companies, isLoading } = useQuery({
+  const { data: companies, isLoading, refetch } = useQuery({
     queryKey: ['available-companies'],
     queryFn: async () => {
       const { data, error } = await supabase.from('companies').select('*').order('name');
@@ -56,6 +57,12 @@ const Dashboard = () => {
     },
     enabled: !companyUser
   });
+
+  // Fonction pour recharger la page
+  const handlePageReload = () => {
+    toast.info("Mise à jour des données...");
+    window.location.reload();
+  };
 
   const handleSelectCompany = async (companyId: string) => {
     if (!user) return;
@@ -83,7 +90,16 @@ const Dashboard = () => {
   if (!companyUser) {
     return (
       <div className="p-4 md:p-10 max-w-2xl mx-auto space-y-6 md:space-y-8 animate-in fade-in duration-500">
-        <div className="text-center space-y-3 pt-4">
+        <div className="relative text-center space-y-3 pt-4">
+          {/* Bouton Reload Flottant pour l'écran de sélection */}
+          <motion.button 
+            whileTap={{ rotate: 180 }}
+            onClick={handlePageReload}
+            className="absolute top-0 right-0 p-2 text-slate-400 hover:text-blue-600 transition-colors"
+          >
+            <RefreshCw size={20} />
+          </motion.button>
+
           <div className="w-16 h-16 md:w-20 md:h-20 bg-blue-50 rounded-[24px] md:rounded-[30px] flex items-center justify-center mx-auto shadow-inner">
             <Building2 className="h-8 w-8 md:h-10 md:w-10 text-blue-600" />
           </div>
@@ -145,8 +161,21 @@ const Dashboard = () => {
           </h1>
           <p className="text-xs text-slate-500 mt-1 font-medium truncate italic">{user?.email}</p>
         </div>
-        <div className="h-12 w-12 md:h-16 md:w-16 bg-white rounded-2xl md:rounded-[24px] shadow-lg flex items-center justify-center border border-slate-50 text-blue-600 shrink-0 ml-4">
-           <Building2 size={24} className="md:w-8 md:h-8" />
+        
+        <div className="flex items-center gap-3">
+          {/* BOUTON RECHARGER (Reload) */}
+          <motion.button
+            whileTap={{ rotate: 180, scale: 0.9 }}
+            onClick={handlePageReload}
+            className="h-10 w-10 flex items-center justify-center rounded-xl bg-slate-100 text-slate-500 hover:bg-blue-50 hover:text-blue-600 transition-all"
+            title="Rafraîchir"
+          >
+            <RefreshCw size={18} />
+          </motion.button>
+
+          <div className="h-12 w-12 md:h-16 md:w-16 bg-white rounded-2xl md:rounded-[24px] shadow-lg flex items-center justify-center border border-slate-50 text-blue-600 shrink-0">
+             <Building2 size={24} className="md:w-8 md:h-8" />
+          </div>
         </div>
       </div>
 
@@ -167,7 +196,7 @@ const Dashboard = () => {
         />
       </div>
 
-      {/* SÉCURITÉ BAS DE PAGE - Version Empilée sur mobile */}
+      {/* SÉCURITÉ BAS DE PAGE */}
       <div className="mt-8 p-5 bg-slate-900 rounded-[24px] md:rounded-[32px] text-white space-y-4 md:space-y-0 flex flex-col md:flex-row items-center justify-between shadow-xl">
         <div className="flex items-center gap-4 w-full md:w-auto">
           <div className="h-10 w-10 md:h-12 md:w-12 bg-blue-500/20 rounded-xl flex items-center justify-center text-blue-400 shrink-0">
