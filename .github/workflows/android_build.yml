@@ -1,114 +1,78 @@
-name: Build Windows App (EXE)
-on:
-  push:
-    branches: [main, master]
-  workflow_dispatch:
-
-jobs:
-  build-windows:
-    runs-on: windows-latest
-    steps:
-      - name: Checkout Source
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-
-      - name: Install Root Dependencies
-        run: |
-          npm install --legacy-peer-deps
-          npm install jspdf jspdf-autotable exceljs file-saver --legacy-peer-deps
-
-      - name: Build Web App (Vite)
-        run: npm run build
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
-
-      - name: Initialize Capacitor Electron
-        run: |
-          npm install @capacitor-community/electron
-          if (!(Test-Path "electron")) {
-            npx cap add @capacitor-community/electron
-          }
-
-      - name: Patch Electron Files (Name, Entry & Config)
-        shell: pwsh
-        run: |
-          # 1. Correction du package.json (Nom, Repo, et surtout le POINT D'ENTREE 'main')
-          $pkgPath = "electron/package.json"
-          if (Test-Path $pkgPath) {
-            $pkg = Get-Content $pkgPath | ConvertFrom-Json
-            $pkg.name = "mucodec-espace-entreprise"
-            $pkg.repository = "https://github.com/${{ github.repository }}"
-            # On force le point d'entrée là où tsc va compiler
-            $pkg.main = "build/index.js" 
-            # On simplifie le script de build pour éviter les conflits
-            $pkg.scripts."electron:make" = "electron-builder build -c ./electron-builder.config.json -p never"
-            $pkg | ConvertTo-Json | Set-Content $pkgPath
-            Write-Host "Fixed package.json: main set to build/index.js"
-          }
-
-          # 2. Patch du TSConfig pour envoyer le résultat dans 'build'
-          $tsconfig = @"
-          {
-            "compilerOptions": {
-              "target": "ESNext",
-              "module": "CommonJS",
-              "allowJs": true,
-              "skipLibCheck": true,
-              "esModuleInterop": true,
-              "noImplicitAny": false,
-              "sourceMap": false,
-              "outDir": "build",
-              "rootDir": "src",
-              "moduleResolution": "node",
-              "resolveJsonModule": true,
-              "strict": false
-            },
-            "include": ["src/**/*.ts"],
-            "exclude": ["node_modules"]
-          }
-          "@
-          $tsconfig | Set-Content -Path "electron/tsconfig.json"
-          Write-Host "TSConfig forced to output in 'build' folder."
-
-      - name: Build and Sync Electron
-        shell: pwsh
-        run: |
-          cd electron
-          npm install --legacy-peer-deps
-          npm install @types/node@20 --save-dev
-          
-          cd ..
-          npx cap sync @capacitor-community/electron
-          
-          cd electron
-          # On lance la compilation TS manuellement
-          Write-Host "Compiling TypeScript..."
-          npx tsc --skipLibCheck
-          
-          # On verifie que le fichier index.js existe bien avant de lancer electron-builder
-          if (Test-Path "build/index.js") {
-            Write-Host "Success: build/index.js found. Starting packaging..."
-            npm run electron:make
-          } else {
-            Write-Error "Critical: build/index.js NOT FOUND. TSC failed."
-            exit 1
-          }
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Windows Setup
-        uses: actions/upload-artifact@v4
-        with:
-          name: MUCODEC-Windows-Installer
-          path: |
-            electron/dist/*.exe
-            electron/out/make/*.exe
-            electron/out/make/squirrel.windows/x64/*.exe
+‎name: Build Android APK
+‎on:
+‎  push:
+‎    branches: [main, master]
+‎  pull_request:
+‎    branches: [main]
+‎
+‎jobs:
+‎  build:
+‎    runs-on: ubuntu-latest
+‎    env:
+‎      ANDROID_SIGNING_KEY: ${{ secrets.ANDROID_SIGNING_KEY }}
+‎
+‎    steps:
+‎      - name: Checkout Source
+‎        uses: actions/checkout@v4
+‎
+‎      - name: Setup Node.js
+‎        uses: actions/setup-node@v4
+‎        with:
+‎          node-version: 20
+‎          cache: 'npm'
+‎
+‎      - name: Setup Java JDK 17
+‎        uses: actions/setup-java@v4
+‎        with:
+‎          java-version: '17'
+‎          distribution: 'zulu'
+‎          cache: 'gradle'
+‎
+‎      - name: Install Dependencies
+‎        run: npm install --legacy-peer-deps
+‎
+‎      - name: Build Web App
+‎        # Injection des clés Supabase au moment du build
+‎        run: npm run build
+‎        env:
+‎          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+‎          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+‎
+‎      - name: Sync Capacitor Android
+‎        run: npx cap sync android
+‎
+‎      - name: Make Gradlew Executable
+‎        run: chmod +x android/gradlew
+‎
+‎      - name: Build Android Release
+‎        run: |
+‎          cd android
+‎          ./gradlew assembleRelease
+‎
+‎      - name: Sign Android Release
+‎        if: env.ANDROID_SIGNING_KEY != ''
+‎        uses: r0adkll/sign-android-release@v1
+‎        id: sign_app
+‎        with:
+‎          releaseDirectory: android/app/build/outputs/apk/release
+‎          signingKeyBase64: ${{ secrets.ANDROID_SIGNING_KEY }}
+‎          alias: ${{ secrets.ANDROID_KEY_ALIAS }}
+‎          keyStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+‎          keyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
+‎        env:
+‎          BUILD_TOOLS_VERSION: "34.0.0"
+‎
+‎      - name: Upload Signed APK
+‎        if: env.ANDROID_SIGNING_KEY != ''
+‎        uses: actions/upload-artifact@v4
+‎        with:
+‎          name: app-release-signed
+‎          path: ${{ steps.sign_app.outputs.signedReleaseFile }}
+‎
+‎      - name: Upload Unsigned APK (Fallback)
+‎        if: env.ANDROID_SIGNING_KEY == ''
+‎        uses: actions/upload-artifact@v4
+‎        with:
+‎          name: app-release-unsigned
+‎          path: android/app/build/outputs/apk/release/*.apk
+‎
