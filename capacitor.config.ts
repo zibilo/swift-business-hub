@@ -4,34 +4,50 @@ const config: CapacitorConfig = {
   appId: 'com.mucodec.espaceentreprise',
   appName: 'MUCODEC Espace Entreprise',
   webDir: 'dist',
+  
   server: {
-    // Utilisation de HTTPS pour la compatibilité avec les API modernes
+    // HTTPS obligatoire pour la sécurité bancaire et l'accès biométrique
     androidScheme: 'https'
   },
-  
-  /* --- CONFIGURATION POUR L'ASPECT NATIF ET HORS-LIGNE --- */
-  
+
+  /* --- CONFIGURATION ANDROID (Look & Feel Natif) --- */
   android: {
-    // Empêche l'effet de "halo bleu" ou de rebond quand on arrive en haut/bas de page
-    // Cela renforce l'impression que le design est fixe et ne peut pas être "bougé"
+    // Empêche le rebond bleu/gris quand on arrive en haut ou bas de page
+    // Cela rend le design "fixe" et pro
     overScrollMode: "never", 
     
-    // Couleur de fond par défaut affichée pendant que le design charge
+    // Couleur de fond par défaut (évite le flash blanc au chargement)
     backgroundColor: "#F8FAFC",
     
-    // Permet de charger des ressources locales plus rapidement
-    allowMixedContent: true,
-    
-    // Optimisation de la saisie (évite que le clavier ne pousse tout le design)
-    windowSoftInputMode: "adjustResize"
+    // Gère le comportement du clavier (ajuste le design sans tout écraser)
+    windowSoftInputMode: "adjustResize",
+
+    // Permet de charger des assets locaux de manière sécurisée
+    allowMixedContent: true
   },
 
+  /* --- CONFIGURATION DES PLUGINS NATIFS --- */
   plugins: {
-    // On force l'application à rester en mode clair ou sombre selon votre choix
-    // pour éviter des bugs de design offline
+    // 1. Écran de démarrage (Splash Screen)
+    SplashScreen: {
+      launchShowDuration: 2000, // Affiche le logo MUCODEC pendant 2 sec
+      launchAutoHide: true,
+      launchFadeOutDuration: 300,
+      backgroundColor: "#F8FAFC",
+      androidSplashResourceName: "splash",
+      androidScaleType: "CENTER_CROP",
+      showSpinner: false, // Plus propre sans le spinner par défaut
+    },
+
+    // 2. Gestion du stockage sécurisé des cookies/sessions
     CapacitorCookies: {
       enabled: true
-    }
+    },
+
+    // 3. Plugin Biométrique
+    // (Le plugin NativeBiometric fonctionne sans config ici, 
+    // mais on s'assure de sa compatibilité)
+    NativeBiometric: {}
   }
 };
 
