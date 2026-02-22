@@ -4,33 +4,50 @@
 
 @layer base {
   :root {
-    /* Couleurs MUCODEC Institutionnelles */
-    --background: 0 0% 100%;
+    /* --- COULEURS MUCODEC BLEU RAYONNANT --- */
+    
+    /* Fond de l'application (Gris-Bleu très léger pour le professionnalisme) */
+    --background: 210 40% 98%;
     --foreground: 222.2 84% 4.9%;
+
+    /* Couleur Primaire : LE BLEU RAYONNANT (#0056D2) */
+    --primary: 215 100% 41%; 
+    --primary-foreground: 210 40% 98%;
+
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
+
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
+
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
+
     --accent: 210 40% 96.1%;
     --accent-foreground: 222.2 47.4% 11.2%;
+
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
+
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    
+    /* Couleur de focus (Anneau) alignée sur le bleu */
+    --ring: 215 100% 41%;
+
     --radius: 0.75rem;
   }
 
+  /* Mode sombre (Optionnel, adapté pour le bleu) */
   .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
-    /* ... rest of dark mode ... */
+    --primary: 215 100% 50%; /* Bleu plus lumineux en mode sombre */
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --border: 217.2 32.6% 17.5%;
   }
 }
 
@@ -44,61 +61,62 @@
   html, body {
     @apply bg-background text-foreground;
     
-    /* --- BLOCAGE DU ZOOM & COMPORTEMENT APP --- */
+    /* --- BLOCAGE DU ZOOM & COMPORTEMENT APP NATIVE --- */
     
-    /* Empêche le zoom au double-clic et limite les interactions au défilement */
+    /* Désactive le zoom par pincement et double-tap */
     touch-action: pan-x pan-y; 
     
-    /* Empêche l'effet de rebond/élastique (Rubber banding) sur iOS et Android */
+    /* Supprime l'effet de rebond (Rubber band) blanc sur iOS et Android */
     overscroll-behavior: none; 
     
-    /* Empêche la sélection de texte sur toute l'app pour simuler un logiciel */
+    /* Désactive la sélection de texte (sauf dans les inputs) pour simuler un vrai logiciel */
     user-select: none;
     -webkit-user-select: none;
     
-    /* Assure que l'application prend toute la hauteur disponible sans scroll parasite */
+    /* Prend tout l'écran sans scroll parasite */
     height: 100%;
     width: 100%;
     overflow: hidden;
     
-    /* Lissage des polices pour un rendu pro */
+    /* Lissage pro des polices */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Réactive la sélection de texte uniquement pour les champs de saisie */
+  /* Réactive la sélection uniquement là où c'est nécessaire (champs de saisie) */
   input, textarea, [contenteditable="true"] {
     user-select: text;
     -webkit-user-select: text;
     touch-action: auto;
   }
 
-  /* Scroll fluide uniquement pour les zones de contenu */
+  /* Scroll uniquement dans la zone principale */
   main, .scroll-area {
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
 }
 
-/* --- DESIGN OPTIMISÉ POUR LE MODE HORS-LIGNE --- */
+/* --- OPTIMISATION HORS-LIGNE (VISUELLE) --- */
 
-/* Si l'application détecte une perte de réseau (via une classe JS), 
-   on peut appliquer un filtre visuel discret */
+/* Appliqué via App.tsx quand isOnline est faux */
 .offline-mode {
-  filter: grayscale(0.2);
+  filter: saturate(0.8); /* Réduit un peu les couleurs quand on est hors-ligne */
 }
 
+/* Cache les éléments qui ne fonctionnent QUE si on a internet */
 .offline-mode .online-only {
-  display: none !important;
+  opacity: 0.5;
+  pointer-events: none;
 }
 
-/* Animation douce pour les transitions entre pages */
+/* Transitions fluides entre les pages */
 .page-transition-enter {
   opacity: 0;
-  transform: scale(0.98);
+  transform: translateY(10px);
 }
 .page-transition-enter-active {
   opacity: 1;
-  transform: scale(1);
-  transition: opacity 200ms, transform 200ms;
+  transform: translateY(0);
+  transition: opacity 300ms, transform 300ms;
 }
