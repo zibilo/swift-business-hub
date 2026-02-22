@@ -80,7 +80,7 @@
     "vaul": "^0.9.4",
     "xlsx": "^0.18.5",
     "zod": "^3.23.8" ,
-    "capacitor-native-biometric": "^6.0.0"
+    "@capacitor-fingerprint-auth": "^6.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.11.0",
