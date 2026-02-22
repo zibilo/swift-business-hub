@@ -13,8 +13,8 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
-// Importation de la bibliothèque biométrique (nom corrigé pour le build)
-import { NativeBiometric } from 'capacitor-native-biometric';
+// Importation de la bibliothèque spécifique @capacitor-fingerprint-auth
+import { FingerprintAuth } from '@capacitor-fingerprint-auth';
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -30,12 +30,13 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
 
-  // 1. Vérification de la disponibilité du capteur d'empreintes au démarrage
+  // 1. Vérification de la disponibilité du capteur avec la nouvelle lib
   useEffect(() => {
     const checkBiometry = async () => {
       try {
-        const result = await NativeBiometric.isAvailable();
-        setBiometricAvailable(result.isAvailable);
+        const result = await FingerprintAuth.isAvailable();
+        // La lib utilise 'has' pour confirmer la présence du capteur
+        setBiometricAvailable(result.has);
       } catch (e) {
         setBiometricAvailable(false);
       }
@@ -47,36 +48,32 @@ export default function Auth() {
     if (!authLoading && user) navigate('/', { replace: true });
   }, [user, authLoading, navigate]);
 
-  // --- TRADUCTEUR D'ERREURS RÉSEAU (Supprime "Failed to fetch") ---
+  // --- TRADUCTEUR D'ERREURS RÉSEAU ---
   const handleAuthError = (err: any) => {
     const msg = err?.message?.toLowerCase() || "";
-    // Si on est hors-ligne ou si l'erreur contient "fetch"
     if (!navigator.onLine || msg.includes("fetch") || msg.includes("network")) {
       return "Le serveur MUCODEC est injoignable. Vérifiez votre connexion internet.";
     }
-    if (msg.includes("invalid login")) return "Email ou mot de passe incorrect.";
-    if (msg.includes("user already exists")) return "Cet email possède déjà un compte.";
-    return "Une erreur de sécurité est survenue. Veuillez réessayer.";
+    return "Email ou mot de passe incorrect.";
   };
 
-  // --- LOGIQUE EMPREINTE DIGITALE ---
+  // --- LOGIQUE EMPREINTE DIGITALE (@capacitor-fingerprint-auth) ---
   const handleBiometricAuth = async () => {
     setError(null);
     try {
-      const verified = await NativeBiometric.verifyIdentity({
-        reason: "Authentification sécurisée MUCODEC",
+      // Déclenche la vérification native
+      const result = await FingerprintAuth.verify({
         title: "Accès par Empreinte",
-        subtitle: "Confirmez votre identité",
-        description: "Posez votre doigt sur le capteur pour ouvrir votre session.",
+        message: "Posez votre doigt sur le capteur pour ouvrir votre session.",
       });
 
-      if (verified) {
-        toast.success("Identité confirmée biométriquement");
-        // Simulation d'accès direct (dans une app réelle, on utilise un token stocké)
+      if (result) {
+        toast.success("Identité confirmée");
+        // Accès immédiat au Dashboard
         navigate('/');
       }
     } catch (err: any) {
-      setError("Empreinte non reconnue ou opération annulée.");
+      setError("Authentification annulée ou empreinte non reconnue.");
     }
   };
 
@@ -85,7 +82,7 @@ export default function Auth() {
     setError(null);
 
     if (!navigator.onLine) {
-      setError("Action impossible : vous êtes hors-ligne.");
+      setError("Vous êtes hors-ligne. Action impossible.");
       return;
     }
 
@@ -107,7 +104,7 @@ export default function Auth() {
     setError(null);
 
     if (!navigator.onLine) {
-      setError("Action impossible : vous êtes hors-ligne.");
+      setError("Vous êtes hors-ligne. Inscription impossible.");
       return;
     }
 
@@ -133,7 +130,7 @@ export default function Auth() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center font-sans antialiased overflow-hidden bg-[#00204E]">
       
-      {/* Background Decor (Bleu Rayonnant) */}
+      {/* Background Decor Blue Radiant */}
       <div className="fixed inset-0 z-0">
         <div className="absolute top-[-20%] left-[-10%] w-[70%] h-[70%] rounded-full bg-[#0056D2]/30 blur-[120px]" />
         <div className="absolute bottom-[-20%] right-[-10%] w-[70%] h-[70%] rounded-full bg-[#00204E]/50 blur-[120px]" />
@@ -144,7 +141,6 @@ export default function Auth() {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-[420px] z-10 px-6"
       >
-        {/* Header Institutionnel */}
         <div className="flex flex-col items-center mb-8 text-center">
           <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-2xl mb-4 border-b-4 border-[#0056D2]">
             <Building2 className="h-9 w-9 text-[#00204E]" />
@@ -170,21 +166,17 @@ export default function Auth() {
                 </Alert>
               )}
 
-              {/* CONNEXION EN 2 ÉTAPES */}
               <TabsContent value="login" className="mt-0 focus-visible:ring-0">
                 <AnimatePresence mode="wait">
                   {loginStep === 1 ? (
                     <motion.div key="l1" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-6">
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-white/60 ml-4 uppercase tracking-widest">Identifiant</label>
-                        <Input 
-                          className="h-14 bg-white/10 border-white/20 text-white placeholder:text-white/30 rounded-full px-6 focus:border-[#0056D2] transition-all" 
-                          placeholder="votre@email.fr"
-                          type="email"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                        />
-                      </div>
+                      <Input 
+                        className="h-14 bg-white/10 border-white/20 text-white rounded-full px-6" 
+                        placeholder="Email professionnel"
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                      />
                       <Button 
                         onClick={() => email.includes('@') && setLoginStep(2)}
                         className="w-full h-14 bg-[#0056D2] hover:bg-blue-700 text-white rounded-full font-bold shadow-lg"
@@ -192,7 +184,7 @@ export default function Auth() {
                         Suivant <ArrowRight className="ml-2 h-4 w-4" />
                       </Button>
 
-                      {/* OPTION EMPREINTE DIGITALE (S'affiche si disponible) */}
+                      {/* OPTION ACCÈS EMPREINTE DIGITALE */}
                       {biometricAvailable && (
                         <div className="pt-4 border-t border-white/10 mt-4 text-center">
                           <p className="text-[10px] text-white/40 uppercase font-black mb-4 tracking-widest">Accès rapide</p>
@@ -211,24 +203,21 @@ export default function Auth() {
                     </motion.div>
                   ) : (
                     <motion.form key="l2" onSubmit={handleLogin} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
-                      <button type="button" onClick={() => setLoginStep(1)} className="flex items-center text-xs font-bold text-blue-400 hover:text-white transition-colors">
+                      <button type="button" onClick={() => setLoginStep(1)} className="flex items-center text-xs font-bold text-blue-400">
                         <ChevronLeft className="h-4 w-4" /> MODIFIER L'EMAIL
                       </button>
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-white/60 ml-4 uppercase tracking-widest">Mot de passe</label>
-                        <Input 
-                          type="password"
-                          autoFocus
-                          className="h-14 bg-white/10 border-white/20 text-white placeholder:text-white/30 rounded-full px-6 focus:border-[#0056D2] transition-all" 
-                          placeholder="••••••••"
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                        />
-                      </div>
+                      <Input 
+                        type="password"
+                        autoFocus
+                        className="h-14 bg-white/10 border-white/20 text-white rounded-full px-6" 
+                        placeholder="Mot de passe"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                      />
                       <Button 
                         type="submit"
                         disabled={isLoading || !navigator.onLine}
-                        className="w-full h-14 bg-white text-[#00204E] hover:bg-slate-100 text-[#00204E] rounded-full font-black shadow-lg"
+                        className="w-full h-14 bg-white text-[#00204E] hover:bg-slate-100 rounded-full font-black shadow-lg"
                       >
                         {isLoading ? <Loader2 className="animate-spin" /> : "ACCÉDER AU DASHBOARD"}
                       </Button>
@@ -237,7 +226,6 @@ export default function Auth() {
                 </AnimatePresence>
               </TabsContent>
 
-              {/* INSCRIPTION */}
               <TabsContent value="signup" className="mt-0 focus-visible:ring-0">
                 <AnimatePresence mode="wait">
                   {signupStep === 1 ? (
@@ -248,10 +236,10 @@ export default function Auth() {
                     </div>
                   ) : (
                     <motion.form key="s2" onSubmit={handleSignup} className="space-y-5">
-                      <Input type="password" autoFocus className="h-14 bg-white/10 border-white/20 text-white rounded-full px-6" placeholder="Mot de passe" value={password} onChange={(e) => setPassword(e.target.value)} />
+                      <Input type="password" autoFocus className="h-14 bg-white/10 border-white/20 text-white rounded-full px-6" placeholder="Définir un mot de passe" value={password} onChange={(e) => setPassword(e.target.value)} />
                       <div className="p-4 bg-white/5 rounded-2xl border border-white/10 flex gap-3 items-center">
                         <ShieldCheck className="h-5 w-5 text-emerald-400" />
-                        <p className="text-[10px] text-white/70">Données protégées par protocole AES-256 MUCODEC.</p>
+                        <p className="text-[10px] text-white/70">Données sécurisées MUCODEC (AES-256).</p>
                       </div>
                       <Button type="submit" disabled={isLoading || !navigator.onLine} className="w-full h-14 bg-white text-[#00204E] rounded-full font-black">CRÉER MON COMPTE</Button>
                     </motion.form>
@@ -263,9 +251,9 @@ export default function Auth() {
         </Card>
 
         <p className="mt-10 text-center text-[10px] text-white/40 font-bold uppercase tracking-[0.4em]">
-          MUCODEC DIGITAL SYSTEMS
+          MUCODEC DIGITAL BANKING
         </p>
       </motion.div>
     </div>
   );
-      }
+                                                   }
