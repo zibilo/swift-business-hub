@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Mail, Lock, ShieldCheck, ArrowRight, ChevronLeft, Fingerprint, Building2, UserPlus } from 'lucide-react';
+import { Loader2, ShieldCheck, ArrowRight, ChevronLeft, Building2, UserPlus, WifiOff } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function Auth() {
@@ -26,15 +26,35 @@ export default function Auth() {
     if (!authLoading && user) navigate('/', { replace: true });
   }, [user, authLoading, navigate]);
 
+  // --- TRADUCTEUR D'ERREURS RÉSEAU ---
+  const handleAuthError = (err: any) => {
+    const msg = err?.message?.toLowerCase() || "";
+    if (!navigator.onLine || msg.includes("fetch") || msg.includes("network")) {
+      return "Le serveur MUCODEC est injoignable. Vérifiez votre connexion internet.";
+    }
+    if (msg.includes("invalid login")) return "Identifiants incorrects.";
+    if (msg.includes("user already exists")) return "Cet email est déjà utilisé.";
+    return "Une erreur est survenue lors de l'authentification.";
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    // Vérification immédiate du réseau
+    if (!navigator.onLine) {
+      setError("Vous êtes hors-ligne. Connexion impossible.");
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const { error } = await signIn(email, password);
-      if (error) setError('Identifiants incorrects');
+      const { error: signInError } = await signIn(email, password);
+      if (signInError) {
+        setError(handleAuthError(signInError));
+      }
     } catch (err) {
-      setError('Erreur serveur');
+      setError("Erreur de communication avec le portail.");
     } finally {
       setIsLoading(false);
     }
@@ -43,12 +63,20 @@ export default function Auth() {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (!navigator.onLine) {
+      setError("Vous êtes hors-ligne. Création de compte impossible.");
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const { error } = await signUp(email, password, name);
-      if (error) setError(error.message);
+      const { error: signUpError } = await signUp(email, password, name);
+      if (signUpError) {
+        setError(handleAuthError(signUpError));
+      }
     } catch (err) {
-      setError('Erreur de création');
+      setError("Erreur technique lors de l'inscription.");
     } finally {
       setIsLoading(false);
     }
@@ -63,7 +91,7 @@ export default function Auth() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center font-sans antialiased overflow-hidden bg-[#00204E]">
       
-      {/* Background Decor (Windows Luminous Style) */}
+      {/* Background Decor */}
       <div className="fixed inset-0 z-0">
         <div className="absolute top-[-20%] left-[-10%] w-[70%] h-[70%] rounded-full bg-[#D32F2F]/20 blur-[120px]" />
         <div className="absolute bottom-[-20%] right-[-10%] w-[70%] h-[70%] rounded-full bg-[#0056D2]/30 blur-[120px]" />
@@ -92,8 +120,11 @@ export default function Auth() {
 
             <div className="p-8">
               {error && (
-                <Alert className="mb-6 bg-[#D32F2F] border-none text-white py-2 rounded-xl animate-pulse">
-                  <AlertDescription className="text-xs text-center font-bold italic">{error}</AlertDescription>
+                <Alert className="mb-6 bg-red-600 border-none text-white py-3 rounded-2xl shadow-lg">
+                  <div className="flex items-center gap-3">
+                    <WifiOff size={16} className="shrink-0" />
+                    <AlertDescription className="text-xs font-bold leading-tight">{error}</AlertDescription>
+                  </div>
                 </Alert>
               )}
 
@@ -107,13 +138,14 @@ export default function Auth() {
                         <Input 
                           className="h-14 bg-white/10 border-white/20 text-white placeholder:text-white/30 rounded-full px-6 focus:border-[#0056D2] transition-all" 
                           placeholder="votre@email.fr"
+                          type="email"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
                         />
                       </div>
                       <Button 
                         onClick={() => email.includes('@') && setLoginStep(2)}
-                        className="w-full h-14 bg-[#0056D2] hover:bg-[#0044A8] text-white rounded-full font-bold shadow-lg shadow-blue-900/40"
+                        className="w-full h-14 bg-[#0056D2] hover:bg-[#0044A8] text-white rounded-full font-bold shadow-lg"
                       >
                         Suivant <ArrowRight className="ml-2 h-4 w-4" />
                       </Button>
@@ -136,8 +168,8 @@ export default function Auth() {
                       </div>
                       <Button 
                         type="submit"
-                        disabled={isLoading}
-                        className="w-full h-14 bg-[#D32F2F] hover:bg-[#B22727] text-white rounded-full font-bold shadow-lg shadow-red-900/40"
+                        disabled={isLoading || !navigator.onLine}
+                        className="w-full h-14 bg-[#D32F2F] hover:bg-[#B22727] text-white rounded-full font-bold shadow-lg"
                       >
                         {isLoading ? <Loader2 className="animate-spin" /> : "Accéder à l'espace"}
                       </Button>
@@ -160,11 +192,12 @@ export default function Auth() {
                       <Input 
                         className="h-14 bg-white/10 border-white/20 text-white placeholder:text-white/30 rounded-full px-6" 
                         placeholder="E-mail professionnel"
+                        type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                       />
                       <Button 
-                        onClick={() => setSignupStep(2)} 
+                        onClick={() => email.includes('@') && setSignupStep(2)} 
                         className="w-full h-14 bg-white text-[#00204E] hover:bg-white/90 rounded-full font-bold"
                       >
                         Étape suivante
@@ -174,6 +207,7 @@ export default function Auth() {
                     <motion.form key="s2" onSubmit={handleSignup} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
                       <Input 
                         type="password"
+                        autoFocus
                         className="h-14 bg-white/10 border-white/20 text-white placeholder:text-white/30 rounded-full px-6" 
                         placeholder="Définir un mot de passe"
                         value={password}
@@ -185,10 +219,9 @@ export default function Auth() {
                           Protection des données garantie par protocole AES-256.
                         </p>
                       </div>
-                      {/* BOUTON S'INSCRIRE FINAL */}
                       <Button 
                         type="submit" 
-                        disabled={isLoading} 
+                        disabled={isLoading || !navigator.onLine} 
                         className="w-full h-14 bg-gradient-to-r from-[#D32F2F] to-[#FF4B4B] text-white rounded-full font-black text-lg shadow-xl"
                       >
                         {isLoading ? <Loader2 className="animate-spin" /> : <><UserPlus className="mr-2 h-5 w-5" /> S'INSCRIRE MAINTENANT</>}
@@ -207,4 +240,4 @@ export default function Auth() {
       </motion.div>
     </div>
   );
-    }
+}
