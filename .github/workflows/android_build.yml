@@ -30,7 +30,7 @@ jobs:
       - name: Install Dependencies
         run: |
           npm install --legacy-peer-deps
-          # Installation du plugin spécifique demandé
+          # Installation du plugin d'empreinte digitale
           npm install @capacitor-fingerprint-auth --legacy-peer-deps
           npm install vite-plugin-pwa -D --legacy-peer-deps
           npm install jspdf jspdf-autotable exceljs file-saver --legacy-peer-deps
@@ -44,12 +44,18 @@ jobs:
       - name: Sync Capacitor Android
         run: npx cap sync android
 
-      - name: Patch Android Manifest for Fingerprint
-        # Ajoute les permissions pour l'empreinte digitale
+      - name: Patch Android Manifest (Permissions)
+        # INDISPENSABLE : Cette étape ajoute les autorisations dans le fichier AndroidManifest.xml
         run: |
-          sed -i '/<application/i \    <uses-permission android:name="android.permission.USE_FINGERPRINT" />' android/app/src/main/AndroidManifest.xml
-          sed -i '/<application/i \    <uses-permission android:name="android.permission.USE_BIOMETRIC" />' android/app/src/main/AndroidManifest.xml
-          echo "Android Manifest patched for Fingerprint Auth."
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          
+          # Ajoute la permission USE_FINGERPRINT (pour les anciens Android)
+          sed -i '/<application/i \    <uses-permission android:name="android.permission.USE_FINGERPRINT" />' $MANIFEST
+          
+          # Ajoute la permission USE_BIOMETRIC (pour les nouveaux Android)
+          sed -i '/<application/i \    <uses-permission android:name="android.permission.USE_BIOMETRIC" />' $MANIFEST
+          
+          echo "Android Manifest successfully patched with biometric permissions."
 
       - name: Make Gradlew Executable
         run: chmod +x android/gradlew
