@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner, toast } from "sonner"; // Import de toast pour les alertes réseau
+import { Toaster as Sonner, toast } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
@@ -10,7 +10,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { WelcomeCover } from "@/components/WelcomeCover"; 
 import { OfflinePage } from "@/components/OfflinePage";
 
-// Pages... (vos imports restent identiques)
+// Pages Utilisateur
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import Company from "./pages/Company";
@@ -19,6 +19,8 @@ import ImportHistory from "./pages/ImportHistory";
 import Support from "./pages/Support";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+
+// Pages Administration
 import { AdminAuthProvider } from "@/contexts/AdminAuthContext";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import AdminLogin from "./pages/admin/AdminLogin";
@@ -27,12 +29,15 @@ import AdminCompanies from "./pages/admin/AdminCompanies";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminImports from "./pages/admin/AdminImports";
 import AdminSupport from "./pages/admin/AdminSupport";
+
+// Modules Stratégiques Admin
 import AdminFinance from "./pages/admin/AdminFinance";
 import AdminFinancialEngine from "./pages/admin/AdminFinancialEngine";
 import AdminCompliance from "./pages/admin/AdminCompliance";
 import AdminBudgeting from "./pages/admin/AdminBudgeting";
 import AdminExecutiveReport from "./pages/admin/AdminExecutiveReport";
 
+// Configuration globale des requêtes
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -47,60 +52,60 @@ const App = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   useEffect(() => {
-    // --- 1. SÉCURITÉ ANTI-ZOOM (NIVEAU LOGICIEL) ---
-    const preventZoom = (e: TouchEvent) => {
-      if (e.touches.length > 1) {
-        e.preventDefault(); // Bloque le pincement à deux doigts
+    // --- 1. DÉTECTION HORS-LIGNE RENFORCÉE (Spécial Mobile) ---
+    const updateOnlineStatus = () => {
+      const status = navigator.onLine;
+      setIsOnline(status);
+      if (status) {
+        document.body.classList.remove('offline-mode');
+      } else {
+        document.body.classList.add('offline-mode');
       }
     };
 
-    const preventKeyDownZoom = (e: KeyboardEvent) => {
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+
+    // Vérification forcée toutes les 3 secondes pour mobile/logiciel
+    const networkCheckInterval = setInterval(updateOnlineStatus, 3000);
+
+    // --- 2. BLOCAGE TOTAL DU ZOOM (Niveau Logiciel) ---
+    // A. Bloque le pincement de doigts sur mobile
+    const preventPinchZoom = (e: TouchEvent) => {
+      if (e.touches.length > 1) {
+        e.preventDefault();
+      }
+    };
+
+    // B. Bloque Ctrl + Molette et Ctrl + Touches (+/-) sur Windows
+    const preventKeyboardZoom = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && (e.key === '+' || e.key === '-' || e.key === '0')) {
-        e.preventDefault(); // Bloque Ctrl + / Ctrl -
+        e.preventDefault();
       }
     };
 
     const preventWheelZoom = (e: WheelEvent) => {
       if (e.ctrlKey) {
-        e.preventDefault(); // Bloque Ctrl + Molette
+        e.preventDefault();
       }
     };
 
-    // Application des blocages sur le document
-    document.addEventListener('touchstart', preventZoom, { passive: false });
-    document.addEventListener('keydown', preventKeyDownZoom);
+    document.addEventListener('touchstart', preventPinchZoom, { passive: false });
+    document.addEventListener('keydown', preventKeyboardZoom);
     document.addEventListener('wheel', preventWheelZoom, { passive: false });
 
-    // --- 2. GESTION DU MODE HORS-LIGNE ---
-    const handleOnline = () => {
-      setIsOnline(true);
-      document.body.classList.remove('offline-mode');
-      toast.success("Connexion rétablie", { description: "Vous êtes de nouveau en ligne." });
-    };
-
-    const handleOffline = () => {
-      setIsOnline(false);
-      document.body.classList.add('offline-mode');
-      toast.error("Mode hors-ligne", { 
-        description: "Certaines données pourraient ne pas être à jour.",
-        duration: 5000 
-      });
-    };
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    // Initialisation
+    // --- 3. GESTION DE LA PAGE DE BIENVENUE ---
     const hasSeenWelcome = localStorage.getItem("mucodec_seen_welcome");
     setShowWelcome(!hasSeenWelcome);
 
-    // Cleanup
+    // Nettoyage au démontage
     return () => {
-      document.removeEventListener('touchstart', preventZoom);
-      document.removeEventListener('keydown', preventKeyDownZoom);
+      window.removeEventListener('online', updateOnlineStatus);
+      window.removeEventListener('offline', updateOnlineStatus);
+      document.removeEventListener('touchstart', preventPinchZoom);
+      document.removeEventListener('keydown', preventKeyboardZoom);
       document.removeEventListener('wheel', preventWheelZoom);
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+      clearInterval(networkCheckInterval);
     };
   }, []);
 
@@ -113,61 +118,81 @@ const App = () => {
     if (navigator.onLine) {
       setIsOnline(true);
       window.location.reload();
+    } else {
+      toast.error("Connexion impossible", {
+        description: "Vérifiez vos paramètres réseau et réessayez."
+      });
     }
   };
 
-  if (showWelcome === null) return null;
+  // Prévention du flash blanc au démarrage
+  if (showWelcome === null) return <div className="min-h-screen bg-[#F8FAFC]" />;
 
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <TooltipProvider>
-          {/* Overlay Offline : Le design reste chargé en dessous grâce au Service Worker (PWA) */}
+          
+          {/* OVERLAY HORS-LIGNE : Bloque l'interaction si pas d'internet */}
           {!isOnline && <OfflinePage onRetry={handleRetryConnection} />}
           
           <Toaster />
-          <Sonner position="top-center" expand={false} richColors />
+          <Sonner position="top-center" richColors />
           
           <BrowserRouter>
             <Routes>
-              {/* PAGE DE GARDE */}
+              {/* --- ROUTE : PAGE DE GARDE --- */}
               <Route 
                 path="/welcome" 
                 element={showWelcome ? <WelcomeCover onFinished={handleWelcomeFinished} /> : <Navigate to="/" replace />} 
               />
 
-              {/* AUTHENTIFICATION */}
-              <Route path="/auth" element={showWelcome ? <Navigate to="/welcome" replace /> : <Auth />} />
+              {/* --- ROUTE : AUTHENTIFICATION --- */}
+              <Route 
+                path="/auth" 
+                element={showWelcome ? <Navigate to="/welcome" replace /> : <Auth />} 
+              />
               
-              {/* ROUTES UTILISATEURS */}
-              <Route path="/" element={<ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>} />
+              {/* --- ROUTES : ESPACE CLIENT (PROTÉGÉ) --- */}
+              <Route
+                path="/"
+                element={
+                  <ProtectedRoute>
+                    <AppLayout><Dashboard /></AppLayout>
+                  </ProtectedRoute>
+                }
+              />
               <Route path="/profile" element={<ProtectedRoute><AppLayout><Profile /></AppLayout></ProtectedRoute>} />
               <Route path="/company" element={<ProtectedRoute><AppLayout><Company /></AppLayout></ProtectedRoute>} />
               <Route path="/import" element={<ProtectedRoute><AppLayout><ImportExcel /></AppLayout></ProtectedRoute>} />
               <Route path="/history" element={<ProtectedRoute><AppLayout><ImportHistory /></AppLayout></ProtectedRoute>} />
               <Route path="/support" element={<ProtectedRoute><AppLayout><Support /></AppLayout></ProtectedRoute>} />
 
-              {/* ADMINISTRATION */}
-              <Route path="/admin/*" element={
-                <AdminAuthProvider>
-                  <Routes>
-                    <Route path="login" element={<AdminLogin />} />
-                    <Route element={<AdminLayout />}>
-                      <Route index element={<AdminDashboard />} />
-                      <Route path="companies" element={<AdminCompanies />} />
-                      <Route path="users" element={<AdminUsers />} />
-                      <Route path="imports" element={<AdminImports />} />
-                      <Route path="finance-fees" element={<AdminFinance />} />
-                      <Route path="finance-engine" element={<AdminFinancialEngine />} />
-                      <Route path="compliance" element={<AdminCompliance />} />
-                      <Route path="budget" element={<AdminBudgeting />} />
-                      <Route path="report" element={<AdminExecutiveReport />} />
-                      <Route path="support" element={<AdminSupport />} />
-                    </Route>
-                  </Routes>
-                </AdminAuthProvider>
-              } />
+              {/* --- ROUTES : ADMINISTRATION DG --- */}
+              <Route
+                path="/admin/*"
+                element={
+                  <AdminAuthProvider>
+                    <Routes>
+                      <Route path="login" element={<AdminLogin />} />
+                      <Route element={<AdminLayout />}>
+                        <Route index element={<AdminDashboard />} />
+                        <Route path="companies" element={<AdminCompanies />} />
+                        <Route path="users" element={<AdminUsers />} />
+                        <Route path="imports" element={<AdminImports />} />
+                        <Route path="finance-fees" element={<AdminFinance />} />
+                        <Route path="finance-engine" element={<AdminFinancialEngine />} />
+                        <Route path="compliance" element={<AdminCompliance />} />
+                        <Route path="budget" element={<AdminBudgeting />} />
+                        <Route path="report" element={<AdminExecutiveReport />} />
+                        <Route path="support" element={<AdminSupport />} />
+                      </Route>
+                    </Routes>
+                  </AdminAuthProvider>
+                }
+              />
 
+              {/* --- ERREUR 404 --- */}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
