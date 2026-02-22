@@ -28,25 +28,26 @@ jobs:
           cache: 'gradle'
 
       - name: Install Dependencies
-        # Installation de TOUS les modules nécessaires (Biométrie, Offline, Reporting)
+        # Installation de TOUS les modules (Biométrie corrigée, PWA, et Reporting)
         run: |
           npm install --legacy-peer-deps
-          npm install @capacitor-community/native-biometric --legacy-peer-deps
+          npm install capacitor-native-biometric --legacy-peer-deps
           npm install vite-plugin-pwa -D --legacy-peer-deps
           npm install jspdf jspdf-autotable exceljs file-saver --legacy-peer-deps
 
       - name: Build Web App
+        # Le build va maintenant générer le cache PWA (Offline)
         run: npm run build
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
 
       - name: Sync Capacitor Android
-        # npx cap sync installe les plugins natifs (Biometric) dans le dossier Android
+        # npx cap sync lie les plugins natifs (Biometric) au code Java d'Android
         run: npx cap sync android
 
       - name: Patch Android Manifest for Biometrics
-        # INDISPENSABLE : Ajoute l'autorisation système pour l'empreinte digitale
+        # INDISPENSABLE : Ajoute l'autorisation système pour l'empreinte digitale avant la compilation
         run: |
           sed -i '/<application/i \    <uses-permission android:name="android.permission.USE_BIOMETRIC" />' android/app/src/main/AndroidManifest.xml
           echo "Android Manifest patched with Biometric permission."
