@@ -28,9 +28,11 @@ jobs:
           cache: 'gradle'
 
       - name: Install Dependencies
-        # Force l'installation des libs de reporting pour éviter l'erreur Rollup/Vite
+        # Installation de TOUS les modules nécessaires (Biométrie, Offline, Reporting)
         run: |
           npm install --legacy-peer-deps
+          npm install @capacitor-community/native-biometric --legacy-peer-deps
+          npm install vite-plugin-pwa -D --legacy-peer-deps
           npm install jspdf jspdf-autotable exceljs file-saver --legacy-peer-deps
 
       - name: Build Web App
@@ -40,7 +42,14 @@ jobs:
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
 
       - name: Sync Capacitor Android
+        # npx cap sync installe les plugins natifs (Biometric) dans le dossier Android
         run: npx cap sync android
+
+      - name: Patch Android Manifest for Biometrics
+        # INDISPENSABLE : Ajoute l'autorisation système pour l'empreinte digitale
+        run: |
+          sed -i '/<application/i \    <uses-permission android:name="android.permission.USE_BIOMETRIC" />' android/app/src/main/AndroidManifest.xml
+          echo "Android Manifest patched with Biometric permission."
 
       - name: Make Gradlew Executable
         run: chmod +x android/gradlew
