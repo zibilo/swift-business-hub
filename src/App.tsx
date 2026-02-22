@@ -10,6 +10,10 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { WelcomeCover } from "@/components/WelcomeCover"; 
 import { OfflinePage } from "@/components/OfflinePage";
 
+// Importation du moteur de mise à jour hors-ligne (PWA)
+// @ts-ignore
+import { useRegisterSW } from 'virtual:pwa-register/react';
+
 // Pages Utilisateur
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
@@ -37,7 +41,6 @@ import AdminCompliance from "./pages/admin/AdminCompliance";
 import AdminBudgeting from "./pages/admin/AdminBudgeting";
 import AdminExecutiveReport from "./pages/admin/AdminExecutiveReport";
 
-// Configuration globale des requêtes
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -48,11 +51,20 @@ const queryClient = new QueryClient({
 });
 
 const App = () => {
+  // --- GESTION DU CACHE HORS-LIGNE (PWA) ---
+  // Cette fonction s'assure que si vous changez le design, 
+  // l'application se met à jour silencieusement sur le téléphone.
+  useRegisterSW({
+    onRegistered(r) {
+      r && r.update();
+    },
+  });
+
   const [showWelcome, setShowWelcome] = useState<boolean | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   useEffect(() => {
-    // --- 1. DÉTECTION HORS-LIGNE RENFORCÉE (Spécial Mobile) ---
+    // --- 1. DÉTECTION HORS-LIGNE RENFORCÉE (Mobile & Desktop) ---
     const updateOnlineStatus = () => {
       const status = navigator.onLine;
       setIsOnline(status);
@@ -65,19 +77,13 @@ const App = () => {
 
     window.addEventListener('online', updateOnlineStatus);
     window.addEventListener('offline', updateOnlineStatus);
-
-    // Vérification forcée toutes les 3 secondes pour mobile/logiciel
     const networkCheckInterval = setInterval(updateOnlineStatus, 3000);
 
-    // --- 2. BLOCAGE TOTAL DU ZOOM (Niveau Logiciel) ---
-    // A. Bloque le pincement de doigts sur mobile
+    // --- 2. BLOCAGE TOTAL DU ZOOM (Conformité Logiciel) ---
     const preventPinchZoom = (e: TouchEvent) => {
-      if (e.touches.length > 1) {
-        e.preventDefault();
-      }
+      if (e.touches.length > 1) e.preventDefault();
     };
 
-    // B. Bloque Ctrl + Molette et Ctrl + Touches (+/-) sur Windows
     const preventKeyboardZoom = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && (e.key === '+' || e.key === '-' || e.key === '0')) {
         e.preventDefault();
@@ -85,20 +91,17 @@ const App = () => {
     };
 
     const preventWheelZoom = (e: WheelEvent) => {
-      if (e.ctrlKey) {
-        e.preventDefault();
-      }
+      if (e.ctrlKey) e.preventDefault();
     };
 
     document.addEventListener('touchstart', preventPinchZoom, { passive: false });
     document.addEventListener('keydown', preventKeyboardZoom);
     document.addEventListener('wheel', preventWheelZoom, { passive: false });
 
-    // --- 3. GESTION DE LA PAGE DE BIENVENUE ---
+    // --- 3. INITIALISATION ---
     const hasSeenWelcome = localStorage.getItem("mucodec_seen_welcome");
     setShowWelcome(!hasSeenWelcome);
 
-    // Nettoyage au démontage
     return () => {
       window.removeEventListener('online', updateOnlineStatus);
       window.removeEventListener('offline', updateOnlineStatus);
@@ -119,13 +122,12 @@ const App = () => {
       setIsOnline(true);
       window.location.reload();
     } else {
-      toast.error("Connexion impossible", {
-        description: "Vérifiez vos paramètres réseau et réessayez."
+      toast.error("Échec de connexion", {
+        description: "Le réseau est toujours indisponible."
       });
     }
   };
 
-  // Prévention du flash blanc au démarrage
   if (showWelcome === null) return <div className="min-h-screen bg-[#F8FAFC]" />;
 
   return (
@@ -133,7 +135,7 @@ const App = () => {
       <AuthProvider>
         <TooltipProvider>
           
-          {/* OVERLAY HORS-LIGNE : Bloque l'interaction si pas d'internet */}
+          {/* L'overlay hors-ligne s'affiche au-dessus de tout si internet est coupé */}
           {!isOnline && <OfflinePage onRetry={handleRetryConnection} />}
           
           <Toaster />
@@ -141,58 +143,38 @@ const App = () => {
           
           <BrowserRouter>
             <Routes>
-              {/* --- ROUTE : PAGE DE GARDE --- */}
-              <Route 
-                path="/welcome" 
-                element={showWelcome ? <WelcomeCover onFinished={handleWelcomeFinished} /> : <Navigate to="/" replace />} 
-              />
-
-              {/* --- ROUTE : AUTHENTIFICATION --- */}
-              <Route 
-                path="/auth" 
-                element={showWelcome ? <Navigate to="/welcome" replace /> : <Auth />} 
-              />
+              <Route path="/welcome" element={showWelcome ? <WelcomeCover onFinished={handleWelcomeFinished} /> : <Navigate to="/" replace />} />
+              <Route path="/auth" element={showWelcome ? <Navigate to="/welcome" replace /> : <Auth />} />
               
-              {/* --- ROUTES : ESPACE CLIENT (PROTÉGÉ) --- */}
-              <Route
-                path="/"
-                element={
-                  <ProtectedRoute>
-                    <AppLayout><Dashboard /></AppLayout>
-                  </ProtectedRoute>
-                }
-              />
+              {/* ESPACE CLIENT */}
+              <Route path="/" element={<ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>} />
               <Route path="/profile" element={<ProtectedRoute><AppLayout><Profile /></AppLayout></ProtectedRoute>} />
               <Route path="/company" element={<ProtectedRoute><AppLayout><Company /></AppLayout></ProtectedRoute>} />
               <Route path="/import" element={<ProtectedRoute><AppLayout><ImportExcel /></AppLayout></ProtectedRoute>} />
               <Route path="/history" element={<ProtectedRoute><AppLayout><ImportHistory /></AppLayout></ProtectedRoute>} />
               <Route path="/support" element={<ProtectedRoute><AppLayout><Support /></AppLayout></ProtectedRoute>} />
 
-              {/* --- ROUTES : ADMINISTRATION DG --- */}
-              <Route
-                path="/admin/*"
-                element={
-                  <AdminAuthProvider>
-                    <Routes>
-                      <Route path="login" element={<AdminLogin />} />
-                      <Route element={<AdminLayout />}>
-                        <Route index element={<AdminDashboard />} />
-                        <Route path="companies" element={<AdminCompanies />} />
-                        <Route path="users" element={<AdminUsers />} />
-                        <Route path="imports" element={<AdminImports />} />
-                        <Route path="finance-fees" element={<AdminFinance />} />
-                        <Route path="finance-engine" element={<AdminFinancialEngine />} />
-                        <Route path="compliance" element={<AdminCompliance />} />
-                        <Route path="budget" element={<AdminBudgeting />} />
-                        <Route path="report" element={<AdminExecutiveReport />} />
-                        <Route path="support" element={<AdminSupport />} />
-                      </Route>
-                    </Routes>
-                  </AdminAuthProvider>
-                }
-              />
+              {/* ESPACE ADMINISTRATION */}
+              <Route path="/admin/*" element={
+                <AdminAuthProvider>
+                  <Routes>
+                    <Route path="login" element={<AdminLogin />} />
+                    <Route element={<AdminLayout />}>
+                      <Route index element={<AdminDashboard />} />
+                      <Route path="companies" element={<AdminCompanies />} />
+                      <Route path="users" element={<AdminUsers />} />
+                      <Route path="imports" element={<AdminImports />} />
+                      <Route path="finance-fees" element={<AdminFinance />} />
+                      <Route path="finance-engine" element={<AdminFinancialEngine />} />
+                      <Route path="compliance" element={<AdminCompliance />} />
+                      <Route path="budget" element={<AdminBudgeting />} />
+                      <Route path="report" element={<AdminExecutiveReport />} />
+                      <Route path="support" element={<AdminSupport />} />
+                    </Route>
+                  </Routes>
+                </AdminAuthProvider>
+              } />
 
-              {/* --- ERREUR 404 --- */}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
