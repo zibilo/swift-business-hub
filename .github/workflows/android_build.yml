@@ -2,6 +2,8 @@ name: Build Android APK
 on:
   push:
     branches: [main, master]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -28,51 +30,46 @@ jobs:
           cache: 'gradle'
 
       - name: Install All Dependencies
+        # Installation forcée des modules nécessaires pour le succès du build
         run: |
           npm install --legacy-peer-deps
-          # Installation des bibliothèques spécifiques pour MUCODEC
-          # On utilise capacitor-native-biometric (le plus stable pour Cap 6)
           npm install capacitor-native-biometric@latest --legacy-peer-deps
           npm install vite-plugin-pwa -D --legacy-peer-deps
           npm install jspdf jspdf-autotable exceljs file-saver --legacy-peer-deps
 
-      - name: Build Web App (Vite)
-        # Génère le code React + le cache hors-ligne (PWA)
+      - name: Build Web App
+        # Génère le code et le cache offline (PWA)
         run: npm run build
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
 
-      - name: Initialize Capacitor Android
-        # Crée le dossier android s'il n'est pas présent dans votre dépôt
+      - name: Sync Capacitor Android
+        # npx cap sync installe les plugins natifs et lie la biométrie
         run: |
           if [ ! -d "android" ]; then
             npx cap add android
           fi
+          npx cap sync android
 
-      - name: Sync Capacitor
-        # Copie les fichiers Web et lie les plugins natifs (Biométrie)
-        run: npx cap sync android
-
-      - name: Patch Android Manifest for Biometrics
-        # INDISPENSABLE : Injecte l'autorisation d'empreinte digitale dans le code natif
+      - name: Patch Android Manifest (Permissions)
+        # INDISPENSABLE : Ajoute l'autorisation d'empreinte digitale dans le code natif
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST" ]; then
             sed -i '/<application/i \    <uses-permission android:name="android.permission.USE_BIOMETRIC" />' $MANIFEST
-            echo "Android Manifest patched successfully."
+            echo "Android Manifest patched for Biometrics."
           fi
 
       - name: Make Gradlew Executable
         run: chmod +x android/gradlew
 
-      - name: Build Android Release (APK)
+      - name: Build Android Release
         run: |
           cd android
           ./gradlew assembleRelease
 
       - name: Sign Android Release
-        # Cette étape ne s'exécute que si vous avez configuré vos secrets GitHub
         if: env.ANDROID_SIGNING_KEY != ''
         uses: r0adkll/sign-android-release@v1
         id: sign_app
@@ -86,7 +83,6 @@ jobs:
           BUILD_TOOLS_VERSION: "34.0.0"
 
       - name: Upload APK Result
-        # Récupère l'APK (signée ou non) et la rend téléchargeable sur GitHub
         uses: actions/upload-artifact@v4
         with:
           name: MUCODEC-Android-Release
