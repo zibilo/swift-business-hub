@@ -5,47 +5,32 @@
 @layer base {
   :root {
     /* --- COULEURS MUCODEC BLEU RAYONNANT --- */
-    
-    /* Fond de l'application (Gris-Bleu très léger pour le professionnalisme) */
     --background: 210 40% 98%;
     --foreground: 222.2 84% 4.9%;
-
-    /* Couleur Primaire : LE BLEU RAYONNANT (#0056D2) */
     --primary: 215 100% 41%; 
     --primary-foreground: 210 40% 98%;
-
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
-
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
-
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
-
     --accent: 210 40% 96.1%;
     --accent-foreground: 222.2 47.4% 11.2%;
-
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    
-    /* Couleur de focus (Anneau) alignée sur le bleu */
     --ring: 215 100% 41%;
-
     --radius: 0.75rem;
   }
 
-  /* Mode sombre (Optionnel, adapté pour le bleu) */
   .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
-    --primary: 215 100% 50%; /* Bleu plus lumineux en mode sombre */
+    --primary: 215 100% 50%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --border: 217.2 32.6% 17.5%;
   }
@@ -54,63 +39,61 @@
 @layer base {
   * {
     @apply border-border;
-    /* Désactive le rectangle gris lors du clic sur mobile */
     -webkit-tap-highlight-color: transparent;
   }
 
   html, body {
     @apply bg-background text-foreground;
     
-    /* --- BLOCAGE DU ZOOM & COMPORTEMENT APP NATIVE --- */
+    /* Empêche le rebond du navigateur sur mobile */
+    overscroll-behavior-y: none; 
     
-    /* Désactive le zoom par pincement et double-tap */
-    touch-action: pan-x pan-y; 
-    
-    /* Supprime l'effet de rebond (Rubber band) blanc sur iOS et Android */
-    overscroll-behavior: none; 
-    
-    /* Désactive la sélection de texte (sauf dans les inputs) pour simuler un vrai logiciel */
-    user-select: none;
-    -webkit-user-select: none;
-    
-    /* Prend tout l'écran sans scroll parasite */
     height: 100%;
     width: 100%;
-    overflow: hidden;
+    /* Bloque le scroll sur body pour éviter le "double scroll" */
+    overflow: hidden; 
     
-    /* Lissage pro des polices */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Réactive la sélection uniquement là où c'est nécessaire (champs de saisie) */
+  /* C'EST ICI QUE LE SCROLL EST RÉACTIVÉ */
+  #root {
+    height: 100%;
+    width: 100%;
+    /* On autorise le défilement vertical uniquement dans le conteneur principal */
+    overflow-y: auto; 
+    -webkit-overflow-scrolling: touch; /* Scroll fluide sur iOS */
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Le contenu interne doit pouvoir s'étendre sans être coupé */
+  main {
+    flex: 1;
+    overflow-y: visible;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Réactive la sélection de texte uniquement dans les inputs */
   input, textarea, [contenteditable="true"] {
     user-select: text;
     -webkit-user-select: text;
-    touch-action: auto;
-  }
-
-  /* Scroll uniquement dans la zone principale */
-  main, .scroll-area {
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
   }
 }
 
-/* --- OPTIMISATION HORS-LIGNE (VISUELLE) --- */
-
-/* Appliqué via App.tsx quand isOnline est faux */
+/* --- OPTIMISATION HORS-LIGNE --- */
 .offline-mode {
-  filter: saturate(0.8); /* Réduit un peu les couleurs quand on est hors-ligne */
+  filter: saturate(0.8);
 }
 
-/* Cache les éléments qui ne fonctionnent QUE si on a internet */
 .offline-mode .online-only {
   opacity: 0.5;
   pointer-events: none;
 }
 
-/* Transitions fluides entre les pages */
+/* Transitions de pages */
 .page-transition-enter {
   opacity: 0;
   transform: translateY(10px);
