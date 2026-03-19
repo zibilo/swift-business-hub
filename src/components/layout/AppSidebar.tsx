@@ -1,8 +1,20 @@
-import { motion, AnimatePresence } from 'framer-motion';
-import { Building2, FileSpreadsheet, MessageSquare, User, History, Home, ChevronRight } from 'lucide-react';
-import { NavLink } from 'react-router-dom'; // Ajusté pour l'exemple
-import { useLocation } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
+import { 
+  Building2, 
+  Users, 
+  FileSpreadsheet, 
+  MessageSquare, 
+  LayoutDashboard, 
+  LogOut, 
+  Calculator, 
+  ShieldAlert, 
+  TrendingUp, 
+  FileText, 
+  Landmark, 
+  ShieldCheck,
+  Database // Import de l'icône pour le référentiel
+} from 'lucide-react';
+import { NavLink } from 'react-router-dom';
+import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import {
   Sidebar,
   SidebarContent,
@@ -10,129 +22,114 @@ import {
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarMenu,
+  SidebarMenuButton,
   SidebarMenuItem,
   SidebarHeader,
   useSidebar,
 } from '@/components/ui/sidebar';
-import { cn } from '@/lib/utils';
 
-const menuItems = [
-  { title: 'Accueil', url: '/', icon: Home },
-  { title: 'Mon Profil', url: '/profile', icon: User },
-  { title: 'Mon Entreprise', url: '/company', icon: Building2 },
-  { title: 'Import Excel', url: '/import', icon: FileSpreadsheet },
-  { title: 'Historique', url: '/history', icon: History },
-  { title: 'Support', url: '/support', icon: MessageSquare },
+// Définition des menus par groupe
+const adminMenuItems = [
+  // GROUPE : SUPERVISION
+  { title: 'Tableau de bord', url: '/admin', icon: LayoutDashboard, group: 'SUPERVISION' },
+  { title: 'Référentiel Salariés', url: '/admin/references', icon: Database, group: 'SUPERVISION' },
+  { title: 'Entreprises', url: '/admin/companies', icon: Building2, group: 'SUPERVISION' },
+  { title: 'Utilisateurs', url: '/admin/users', icon: Users, group: 'SUPERVISION' },
+  { title: 'Historique Flux', url: '/admin/imports', icon: FileSpreadsheet, group: 'SUPERVISION' },
+  
+  // GROUPE : FINANCE
+  { title: 'Calcul des Frais', url: '/admin/finance-fees', icon: Calculator, group: 'FINANCE' },
+  { title: 'Moteur Financier', url: '/admin/finance-engine', icon: Landmark, group: 'FINANCE' },
+  
+  // GROUPE : SÉCURITÉ
+  { title: 'Audit & Conformité', url: '/admin/compliance', icon: ShieldAlert, group: 'SÉCURITÉ' },
+  
+  // GROUPE : STRATÉGIE
+  { title: 'Plan Prévisionnel', url: '/admin/budget', icon: TrendingUp, group: 'STRATÉGIE' },
+  { title: 'Rapport Direction', url: '/admin/report', icon: FileText, group: 'STRATÉGIE' },
+  
+  // GROUPE : SERVICE
+  { title: 'Support Client', url: '/admin/support', icon: MessageSquare, group: 'SERVICE' },
 ];
 
-export function AppSidebar() {
-  const location = useLocation();
-  const { companyUser } = useAuth();
+export function AdminSidebar() {
+  const { adminLogout } = useAdminAuth();
   const { state } = useSidebar();
   const isCollapsed = state === 'collapsed';
 
+  // Liste unique des groupes pour le rendu
+  const groups = ['SUPERVISION', 'FINANCE', 'SÉCURITÉ', 'STRATÉGIE', 'SERVICE'];
+
   return (
-    <Sidebar collapsible="icon" className="border-r-0 bg-slate-50/50 dark:bg-slate-950/50 backdrop-blur-xl">
-      <SidebarHeader className="p-6">
-        <motion.div 
-          layout
-          className="flex items-center gap-3 overflow-hidden"
-        >
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/20 text-primary-foreground">
-            <Building2 className="h-6 w-6" />
+    <Sidebar collapsible="icon" className="border-r border-slate-200">
+      {/* HEADER : Logo MUCODEC Admin */}
+      <SidebarHeader className="border-b p-4 bg-[#00204E] text-white">
+        <div className="flex items-center gap-3">
+          <div className="bg-red-600 p-1.5 rounded-lg shrink-0 shadow-lg">
+            <ShieldCheck className="h-5 w-5 text-white" />
           </div>
-          <AnimatePresence>
-            {!isCollapsed && (
-              <motion.div
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
-                transition={{ duration: 0.2 }}
-                className="flex flex-col"
-              >
-                <span className="font-bold tracking-tight text-slate-900 dark:text-slate-100">Espace Pro</span>
-                <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Dashboard</span>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.div>
-      </SidebarHeader>
-      
-      <SidebarContent className="px-3">
-        <SidebarGroup>
           {!isCollapsed && (
-            <SidebarGroupLabel className="px-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">
-              Menu Principal
-            </SidebarGroupLabel>
+            <div className="flex flex-col overflow-hidden">
+              <span className="font-black text-sm tracking-tighter whitespace-nowrap">MUCODEC ADMIN</span>
+              <span className="text-[9px] text-blue-300 uppercase font-bold tracking-widest truncate">Direction Générale</span>
+            </div>
           )}
-          <SidebarGroupContent>
-            <SidebarMenu className="gap-1">
-              {menuItems.map((item) => {
-                const requiresCompany = ['/import', '/history', '/support', '/company'];
-                const isDisabled = !companyUser && requiresCompany.includes(item.url);
-                const isActive = location.pathname === item.url;
-                
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <NavLink
-                      to={isDisabled ? '#' : item.url}
-                      className={cn(
-                        "relative group flex items-center h-11 w-full rounded-lg px-3 transition-all duration-300",
-                        isDisabled ? "opacity-40 cursor-not-allowed" : "hover:bg-slate-200/50 dark:hover:bg-slate-800/50",
-                        isActive ? "text-primary" : "text-slate-600 dark:text-slate-400"
-                      )}
-                    >
-                      {/* Background de l'item actif avec Framer Motion */}
-                      {isActive && (
-                        <motion.div
-                          layoutId="activeNav"
-                          className="absolute inset-0 bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700"
-                          transition={{ type: "spring", stiffness: 380, damping: 30 }}
-                        />
-                      )}
+        </div>
+      </SidebarHeader>
 
-                      <div className="relative z-10 flex items-center gap-3 w-full">
-                        <item.icon className={cn(
-                          "h-5 w-5 shrink-0 transition-transform duration-300 group-hover:scale-110",
-                          isActive ? "text-primary" : "text-slate-500"
-                        )} />
-                        
-                        {!isCollapsed && (
-                          <motion.span 
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            className="text-sm font-medium"
-                          >
-                            {item.title}
-                          </motion.span>
-                        )}
+      <SidebarContent className="bg-white">
+        {groups.map((groupName) => (
+          <SidebarGroup key={groupName}>
+            {!isCollapsed && (
+              <SidebarGroupLabel className="px-3 text-[10px] font-black text-slate-400 mt-4 mb-2 tracking-[0.2em]">
+                {groupName}
+              </SidebarGroupLabel>
+            )}
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {adminMenuItems
+                  .filter((item) => item.group === groupName)
+                  .map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild tooltip={item.title}>
+                        <NavLink
+                          to={item.url}
+                          className={({ isActive }) =>
+                            `flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200 ${
+                              isActive 
+                                ? 'bg-blue-50 text-[#00204E] font-bold shadow-sm ring-1 ring-blue-100/50' 
+                                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                            }`
+                          }
+                        >
+                          <item.icon className="h-4 w-4 shrink-0" />
+                          {!isCollapsed && <span className="text-xs">{item.title}</span>}
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
 
-                        {/* Petit indicateur de flèche au survol */}
-                        {!isCollapsed && !isDisabled && !isActive && (
-                          <ChevronRight className="ml-auto h-3 w-3 opacity-0 -translate-x-2 transition-all group-hover:opacity-100 group-hover:translate-x-0" />
-                        )}
-                      </div>
-                    </NavLink>
-                  </SidebarMenuItem>
-                );
-              })}
+        {/* BOUTON DÉCONNEXION */}
+        <SidebarGroup>
+          <SidebarGroupContent className="mt-4 pt-4 border-t border-slate-100">
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  onClick={adminLogout} 
+                  className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl mx-2"
+                >
+                  <LogOut className="h-4 w-4 shrink-0" />
+                  {!isCollapsed && <span className="text-xs font-bold">Fermer la session</span>}
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-
-      {/* Footer décoratif ou info utilisateur */}
-      {!isCollapsed && (
-        <div className="mt-auto p-4 border-t border-slate-200/50 dark:border-slate-800/50">
-          <div className="bg-gradient-to-br from-primary/5 to-primary/10 rounded-xl p-3 border border-primary/10">
-            <p className="text-[10px] font-medium text-primary uppercase mb-1">Status</p>
-            <div className="flex items-center gap-2">
-              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-              <span className="text-xs text-slate-600 dark:text-slate-300">Système opérationnel</span>
-            </div>
-          </div>
-        </div>
-      )}
     </Sidebar>
   );
 }
