@@ -14,7 +14,7 @@ import { OfflinePage } from "@/components/OfflinePage";
 // @ts-ignore
 import { useRegisterSW } from 'virtual:pwa-register/react';
 
-// Pages Utilisateur
+// Pages Utilisateur (Client)
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import Company from "./pages/Company";
@@ -33,6 +33,7 @@ import AdminCompanies from "./pages/admin/AdminCompanies";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminImports from "./pages/admin/AdminImports";
 import AdminSupport from "./pages/admin/AdminSupport";
+import AdminReferences from "./pages/admin/AdminReferences"; // NOUVEAU MODULE
 
 // Modules Stratégiques Admin
 import AdminFinance from "./pages/admin/AdminFinance";
@@ -52,8 +53,6 @@ const queryClient = new QueryClient({
 
 const App = () => {
   // --- GESTION DU CACHE HORS-LIGNE (PWA) ---
-  // Cette fonction s'assure que si vous changez le design, 
-  // l'application se met à jour silencieusement sur le téléphone.
   useRegisterSW({
     onRegistered(r) {
       r && r.update();
@@ -64,7 +63,7 @@ const App = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   useEffect(() => {
-    // --- 1. DÉTECTION HORS-LIGNE RENFORCÉE (Mobile & Desktop) ---
+    // --- 1. DÉTECTION HORS-LIGNE RENFORCÉE ---
     const updateOnlineStatus = () => {
       const status = navigator.onLine;
       setIsOnline(status);
@@ -77,11 +76,12 @@ const App = () => {
 
     window.addEventListener('online', updateOnlineStatus);
     window.addEventListener('offline', updateOnlineStatus);
-    const networkCheckInterval = setInterval(updateOnlineStatus, 3000);
 
-    // --- 2. BLOCAGE TOTAL DU ZOOM (Conformité Logiciel) ---
+    // --- 2. BLOCAGE DU ZOOM (Conformité Logiciel Pro) ---
     const preventPinchZoom = (e: TouchEvent) => {
-      if (e.touches.length > 1) e.preventDefault();
+      if (e.touches.length > 1) {
+        if (e.cancelable) e.preventDefault();
+      }
     };
 
     const preventKeyboardZoom = (e: KeyboardEvent) => {
@@ -98,7 +98,7 @@ const App = () => {
     document.addEventListener('keydown', preventKeyboardZoom);
     document.addEventListener('wheel', preventWheelZoom, { passive: false });
 
-    // --- 3. INITIALISATION ---
+    // --- 3. GESTION DE L'ÉCRAN D'ACCUEIL (WELCOME) ---
     const hasSeenWelcome = localStorage.getItem("mucodec_seen_welcome");
     setShowWelcome(!hasSeenWelcome);
 
@@ -108,7 +108,6 @@ const App = () => {
       document.removeEventListener('touchstart', preventPinchZoom);
       document.removeEventListener('keydown', preventKeyboardZoom);
       document.removeEventListener('wheel', preventWheelZoom);
-      clearInterval(networkCheckInterval);
     };
   }, []);
 
@@ -135,7 +134,7 @@ const App = () => {
       <AuthProvider>
         <TooltipProvider>
           
-          {/* L'overlay hors-ligne s'affiche au-dessus de tout si internet est coupé */}
+          {/* Overlay de perte de connexion */}
           {!isOnline && <OfflinePage onRetry={handleRetryConnection} />}
           
           <Toaster />
@@ -143,10 +142,11 @@ const App = () => {
           
           <BrowserRouter>
             <Routes>
+              {/* ACCUEIL & AUTHENTIFICATION */}
               <Route path="/welcome" element={showWelcome ? <WelcomeCover onFinished={handleWelcomeFinished} /> : <Navigate to="/" replace />} />
               <Route path="/auth" element={showWelcome ? <Navigate to="/welcome" replace /> : <Auth />} />
               
-              {/* ESPACE CLIENT */}
+              {/* ESPACE CLIENT (PROTEGÉ) */}
               <Route path="/" element={<ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>} />
               <Route path="/profile" element={<ProtectedRoute><AppLayout><Profile /></AppLayout></ProtectedRoute>} />
               <Route path="/company" element={<ProtectedRoute><AppLayout><Company /></AppLayout></ProtectedRoute>} />
@@ -154,13 +154,14 @@ const App = () => {
               <Route path="/history" element={<ProtectedRoute><AppLayout><ImportHistory /></AppLayout></ProtectedRoute>} />
               <Route path="/support" element={<ProtectedRoute><AppLayout><Support /></AppLayout></ProtectedRoute>} />
 
-              {/* ESPACE ADMINISTRATION */}
+              {/* ESPACE ADMINISTRATION (PROTEGÉ) */}
               <Route path="/admin/*" element={
                 <AdminAuthProvider>
                   <Routes>
                     <Route path="login" element={<AdminLogin />} />
                     <Route element={<AdminLayout />}>
                       <Route index element={<AdminDashboard />} />
+                      <Route path="references" element={<AdminReferences />} /> {/* Route Référentiel */}
                       <Route path="companies" element={<AdminCompanies />} />
                       <Route path="users" element={<AdminUsers />} />
                       <Route path="imports" element={<AdminImports />} />
