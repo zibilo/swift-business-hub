@@ -8,13 +8,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   Loader2, ShieldCheck, ArrowRight, ChevronLeft, 
-  Building2, UserPlus, WifiOff, Fingerprint 
+  Building2, WifiOff 
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-
-// Importation de la bibliothèque spécifique @capacitor-fingerprint-auth
-import { FingerprintAuth } from '@capacitor-fingerprint-auth';
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -24,25 +21,10 @@ export default function Auth() {
   const [signupStep, setSignupStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [biometricAvailable, setBiometricAvailable] = useState(false);
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-
-  // 1. Vérification de la disponibilité du capteur avec la nouvelle lib
-  useEffect(() => {
-    const checkBiometry = async () => {
-      try {
-        const result = await FingerprintAuth.isAvailable();
-        // La lib utilise 'has' pour confirmer la présence du capteur
-        setBiometricAvailable(result.has);
-      } catch (e) {
-        setBiometricAvailable(false);
-      }
-    };
-    checkBiometry();
-  }, []);
 
   useEffect(() => {
     if (!authLoading && user) navigate('/', { replace: true });
@@ -55,26 +37,6 @@ export default function Auth() {
       return "Le serveur MUCODEC est injoignable. Vérifiez votre connexion internet.";
     }
     return "Email ou mot de passe incorrect.";
-  };
-
-  // --- LOGIQUE EMPREINTE DIGITALE (@capacitor-fingerprint-auth) ---
-  const handleBiometricAuth = async () => {
-    setError(null);
-    try {
-      // Déclenche la vérification native
-      const result = await FingerprintAuth.verify({
-        title: "Accès par Empreinte",
-        message: "Posez votre doigt sur le capteur pour ouvrir votre session.",
-      });
-
-      if (result) {
-        toast.success("Identité confirmée");
-        // Accès immédiat au Dashboard
-        navigate('/');
-      }
-    } catch (err: any) {
-      setError("Authentification annulée ou empreinte non reconnue.");
-    }
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -183,23 +145,6 @@ export default function Auth() {
                       >
                         Suivant <ArrowRight className="ml-2 h-4 w-4" />
                       </Button>
-
-                      {/* OPTION ACCÈS EMPREINTE DIGITALE */}
-                      {biometricAvailable && (
-                        <div className="pt-4 border-t border-white/10 mt-4 text-center">
-                          <p className="text-[10px] text-white/40 uppercase font-black mb-4 tracking-widest">Accès rapide</p>
-                          <motion.button 
-                            whileTap={{ scale: 0.9 }}
-                            onClick={handleBiometricAuth}
-                            className="flex flex-col items-center gap-2 mx-auto group"
-                          >
-                            <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center transition-all hover:bg-white/10">
-                              <Fingerprint size={32} className="text-[#0056D2]" />
-                            </div>
-                            <span className="text-[10px] font-bold text-white/60 uppercase">Empreinte</span>
-                          </motion.button>
-                        </div>
-                      )}
                     </motion.div>
                   ) : (
                     <motion.form key="l2" onSubmit={handleLogin} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
@@ -256,4 +201,4 @@ export default function Auth() {
       </motion.div>
     </div>
   );
-                                                   }
+}
