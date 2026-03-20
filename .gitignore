@@ -22,4 +22,4 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-.env
+# .env # Removed by Orchids to allow .env files
