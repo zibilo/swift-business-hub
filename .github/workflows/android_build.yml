@@ -1,12 +1,12 @@
-name: Build Android APK
+name: Build Windows App (EXE)
 on:
   push:
     branches: [main, master]
   workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  build-windows:
+    runs-on: windows-latest
     steps:
       - name: Checkout Source
         uses: actions/checkout@v4
@@ -15,43 +15,92 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'npm'
 
-      - name: Setup Java JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'zulu'
-
-      - name: Force Clean and Install
-        # On supprime le lockfile pour laisser NPM tout reconstruire proprement
+      - name: Install Root Dependencies
         run: |
-          rm -f package-lock.json
           npm install --legacy-peer-deps
+          npm install jspdf jspdf-autotable exceljs file-saver --legacy-peer-deps
 
-      - name: Build Web App
+      - name: Build Web App (Vite)
         run: npm run build
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
 
-      - name: Initialize and Sync Capacitor
+      - name: Initialize Capacitor Electron
         run: |
-          if [ ! -d "android" ]; then npx cap add android; fi
-          npx cap sync android
+          npm install @capacitor-community/electron
+          if (!(Test-Path "electron")) {
+            npx cap add @capacitor-community/electron
+          }
 
-      - name: Patch Android Manifest
+      - name: Patch Electron & Icons
+        shell: pwsh
         run: |
-          MANIFEST="android/app/src/main/AndroidManifest.xml"
-          sed -i '/<application/i \    <uses-permission android:name="android.permission.USE_BIOMETRIC" />' $MANIFEST
+          # 1. Copie de l'icône personnalisée
+          if (Test-Path "resources_electron/icon.ico") {
+            Copy-Item "resources_electron/icon.ico" "electron/assets/icon.ico" -Force
+            Write-Host "Icon updated."
+          }
 
-      - name: Build Android Release
+          # 2. Correction du package.json
+          $pkgPath = "electron/package.json"
+          if (Test-Path $pkgPath) {
+            $pkg = Get-Content $pkgPath | ConvertFrom-Json
+            $pkg.name = "mucodec-espace-entreprise"
+            $pkg.main = "build/index.js" 
+            $pkg.scripts."electron:make" = "electron-builder build -c ./electron-builder.config.json -p never"
+            $pkg | ConvertTo-Json | Set-Content $pkgPath
+          }
+
+          # 3. Patch du TSConfig
+          $tsconfig = @"
+          {
+            "compilerOptions": {
+              "target": "ESNext",
+              "module": "CommonJS",
+              "allowJs": true,
+              "skipLibCheck": true,
+              "esModuleInterop": true,
+              "outDir": "build",
+              "rootDir": "src",
+              "moduleResolution": "node",
+              "resolveJsonModule": true,
+              "strict": false
+            },
+            "include": ["src/**/*.ts"],
+            "exclude": ["node_modules"]
+          }
+          "@
+          $tsconfig | Set-Content -Path "electron/tsconfig.json"
+
+      - name: Build and Sync Electron
+        shell: pwsh
         run: |
-          chmod +x android/gradlew
-          cd android
-          ./gradlew assembleRelease
+          cd electron
+          npm install --legacy-peer-deps
+          
+          cd ..
+          npx cap sync @capacitor-community/electron
+          
+          cd electron
+          Write-Host "Compiling TypeScript..."
+          npx tsc
+          
+          if (Test-Path "build/index.js") {
+            npm run electron:make
+          } else {
+            Write-Error "Critical: build/index.js NOT FOUND."
+            exit 1
+          }
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload APK
+      - name: Upload Windows Setup
         uses: actions/upload-artifact@v4
         with:
-          name: MUCODEC-Android
-          path: android/app/build/outputs/apk/release/*.apk
+          name: MUCODEC-Windows-Installer
+          path: electron/dist/*.exe
