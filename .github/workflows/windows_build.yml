@@ -32,6 +32,18 @@ jobs:
           '{"name":"@capacitor-fingerprint-auth","version":"1.0.0","main":"index.js"}' | Set-Content "$mockPath/package.json"
           'export const FingerprintAuth = { available: () => Promise.resolve(false), auth: () => Promise.resolve(false) }; export default FingerprintAuth;' | Set-Content "$mockPath/index.js"
 
+      - name: Auto-Patch Source Code Errors
+        shell: pwsh
+        run: |
+          # Correction de l'import mal formé dans AppLayout.tsx
+          $layoutPath = "src/components/layout/AppLayout.tsx"
+          if (Test-Path $layoutPath) {
+            $content = Get-Content $layoutPath
+            $content = $content -replace 'import { AppSidebar } from "./AppSidebar"', 'import AppSidebar from "./AppSidebar"'
+            $content | Set-Content $layoutPath
+            Write-Host "✅ AppLayout.tsx patched."
+          }
+
       - name: Build Web App (Vite)
         run: npm run build
         env:
@@ -43,7 +55,6 @@ jobs:
         run: |
           npm install @capacitor-community/electron --legacy-peer-deps
           if (Test-Path "electron") { Remove-Item -Recurse -Force "electron" }
-          if (Test-Path "capacitor.config.ts") { Remove-Item "capacitor.config.ts" }
           
           $config = @{
             appId = "com.mucodec.espaceentreprise"
@@ -61,58 +72,29 @@ jobs:
           cd electron
           npm install --legacy-peer-deps
           
-          # 1. FORCER LE TSCONFIG (rootDir src pour éviter build/src/)
-          $tsconfig = @{
-            compilerOptions = @{
-              target = "ESNext"
-              module = "CommonJS"
-              allowJs = $true
-              skipLibCheck = $true
-              esModuleInterop = $true
-              outDir = "build"
-              rootDir = "src" 
-              sourceMap = $false
-              strict = $false
-            }
-            include = @("src/**/*.ts")
-            exclude = @("node_modules")
-          }
-          $tsconfig | ConvertTo-Json -Depth 10 | Set-Content "tsconfig.json"
-
-          # 2. COMPILATION
-          Write-Host "Compiling TypeScript..."
+          # Compilation TS
           npx tsc --skipLibCheck --noEmitOnError false
           
-          # 3. CORRECTION MANUELLE ET FORCÉE DU PACKAGE.JSON
+          # Correction du package.json
           $pkg = Get-Content "package.json" -Raw | ConvertFrom-Json
           $pkg.name = "mucodec-espace-entreprise"
-          $pkg.main = "build/index.js" # ON FORCE ICI
+          $pkg.main = "build/index.js"
           $pkg.scripts."electron:make" = "electron-builder build --win --publish never"
-          
-          # Ajout du repository pour éviter l'erreur Git
           $repoUrl = "https://github.com/${{ github.repository }}"
           if (-not $pkg.repository) { $pkg | Add-Member -Type NoteProperty -Name "repository" -Value $repoUrl }
-          
           $pkg | ConvertTo-Json -Depth 10 | Set-Content "package.json"
 
-          # 4. DÉPLACEMENT PHYSIQUE DES FICHIERS SI BESOIN
+          # Déplacement build/src -> build/
           if (Test-Path "build/src/index.js") {
-            Write-Host "⚠️ Correction structure build/src -> build/"
             Copy-Item -Path "build/src/*" -Destination "build/" -Recurse -Force
             Remove-Item -Path "build/src" -Recurse -Force
           }
 
-          # 5. SUPPRESSION DE L'ICÔNE (Évite l'erreur 256x256)
+          # Suppression icône invalide
           if (Test-Path "assets/icon.ico") { Remove-Item "assets/icon.ico" -Force }
 
-          # 6. LANCEMENT
-          if (Test-Path "build/index.js") {
-            Write-Host "✅ Point d'entrée vérifié. Lancement du packaging..."
-            npm run electron:make
-          } else {
-            Write-Error "❌ build/index.js toujours introuvable."
-            exit 1
-          }
+          # Packaging
+          npm run electron:make
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
