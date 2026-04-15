@@ -1,0 +1,123 @@
+name: Build Windows App (EXE)
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'npm'
+
+      - name: Install Root Dependencies
+        shell: pwsh
+        run: |
+          npm install --legacy-peer-deps
+          npm install jspdf jspdf-autotable exceljs file-saver --legacy-peer-deps
+          
+          # Mock pour @capacitor-fingerprint-auth
+          $mockPath = "node_modules/@capacitor-fingerprint-auth"
+          if (!(Test-Path $mockPath)) { New-Item -ItemType Directory -Path $mockPath -Force }
+          '{"name":"@capacitor-fingerprint-auth","version":"1.0.0","main":"index.js"}' | Set-Content "$mockPath/package.json"
+          'export const FingerprintAuth = { available: () => Promise.resolve(false), auth: () => Promise.resolve(false) }; export default FingerprintAuth;' | Set-Content "$mockPath/index.js"
+
+      - name: Build Web App (Vite)
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+
+      - name: Setup Capacitor Electron
+        shell: pwsh
+        run: |
+          npm install @capacitor-community/electron --legacy-peer-deps
+          if (Test-Path "electron") { Remove-Item -Recurse -Force "electron" }
+          if (Test-Path "capacitor.config.ts") { Remove-Item "capacitor.config.ts" }
+          
+          $config = @{
+            appId = "com.mucodec.espaceentreprise"
+            appName = "mucodec-espace-entreprise"
+            webDir = "dist"
+            server = @{ androidScheme = "https" }
+          }
+          $config | ConvertTo-Json | Set-Content "capacitor.config.json"
+          npx cap add @capacitor-community/electron
+
+      - name: Final Build & Structure Fix
+        shell: pwsh
+        run: |
+          npx cap sync @capacitor-community/electron
+          cd electron
+          npm install --legacy-peer-deps
+          
+          # 1. FORCER LE TSCONFIG (rootDir src pour éviter build/src/)
+          $tsconfig = @{
+            compilerOptions = @{
+              target = "ESNext"
+              module = "CommonJS"
+              allowJs = $true
+              skipLibCheck = $true
+              esModuleInterop = $true
+              outDir = "build"
+              rootDir = "src" 
+              sourceMap = $false
+              strict = $false
+            }
+            include = @("src/**/*.ts")
+            exclude = @("node_modules")
+          }
+          $tsconfig | ConvertTo-Json -Depth 10 | Set-Content "tsconfig.json"
+
+          # 2. COMPILATION
+          Write-Host "Compiling TypeScript..."
+          npx tsc --skipLibCheck --noEmitOnError false
+          
+          # 3. CORRECTION MANUELLE ET FORCÉE DU PACKAGE.JSON
+          $pkg = Get-Content "package.json" -Raw | ConvertFrom-Json
+          $pkg.name = "mucodec-espace-entreprise"
+          $pkg.main = "build/index.js" # ON FORCE ICI
+          $pkg.scripts."electron:make" = "electron-builder build --win --publish never"
+          
+          # Ajout du repository pour éviter l'erreur Git
+          $repoUrl = "https://github.com/${{ github.repository }}"
+          if (-not $pkg.repository) { $pkg | Add-Member -Type NoteProperty -Name "repository" -Value $repoUrl }
+          
+          $pkg | ConvertTo-Json -Depth 10 | Set-Content "package.json"
+
+          # 4. DÉPLACEMENT PHYSIQUE DES FICHIERS SI BESOIN
+          if (Test-Path "build/src/index.js") {
+            Write-Host "⚠️ Correction structure build/src -> build/"
+            Copy-Item -Path "build/src/*" -Destination "build/" -Recurse -Force
+            Remove-Item -Path "build/src" -Recurse -Force
+          }
+
+          # 5. SUPPRESSION DE L'ICÔNE (Évite l'erreur 256x256)
+          if (Test-Path "assets/icon.ico") { Remove-Item "assets/icon.ico" -Force }
+
+          # 6. LANCEMENT
+          if (Test-Path "build/index.js") {
+            Write-Host "✅ Point d'entrée vérifié. Lancement du packaging..."
+            npm run electron:make
+          } else {
+            Write-Error "❌ build/index.js toujours introuvable."
+            exit 1
+          }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Windows Setup
+        uses: actions/upload-artifact@v4
+        with:
+          name: MUCODEC-Windows-Installer
+          path: electron/dist/*.exe
