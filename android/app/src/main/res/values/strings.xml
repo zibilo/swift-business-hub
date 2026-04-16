@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">MUCODEC Espace Entreprise</string>
+    <string name="title_activity_main">MUCODEC PAIE</string>
+    <string name="package_name">com.mucodec.espaceentreprise</string>
+    <string name="custom_url_scheme">com.mucodec.espaceentreprise</string>
+</resources>

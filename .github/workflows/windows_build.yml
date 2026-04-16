@@ -1,0 +1,91 @@
+name: Build Windows App (EXE)
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'npm'
+
+      - name: Install Root Dependencies
+        shell: pwsh
+        run: |
+          npm install --legacy-peer-deps
+          npm install jspdf jspdf-autotable exceljs file-saver --legacy-peer-deps
+          
+          # Mock pour @capacitor-fingerprint-auth
+          $mockPath = "node_modules/@capacitor-fingerprint-auth"
+          if (!(Test-Path $mockPath)) { New-Item -ItemType Directory -Path $mockPath -Force }
+          '{"name":"@capacitor-fingerprint-auth","version":"1.0.0","main":"index.js"}' | Set-Content "$mockPath/package.json"
+          'export const FingerprintAuth = { available: () => Promise.resolve(false), auth: () => Promise.resolve(false) }; export default FingerprintAuth;' | Set-Content "$mockPath/index.js"
+
+      - name: Build Web App (Vite)
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+
+      - name: Setup Capacitor Electron
+        shell: pwsh
+        run: |
+          npm install @capacitor-community/electron --legacy-peer-deps
+          if (Test-Path "electron") { Remove-Item -Recurse -Force "electron" }
+          
+          $config = @{
+            appId = "com.mucodec.espaceentreprise"
+            appName = "mucodec-espace-entreprise"
+            webDir = "dist"
+            server = @{ androidScheme = "https" }
+          }
+          $config | ConvertTo-Json | Set-Content "capacitor.config.json"
+          npx cap add @capacitor-community/electron
+
+      - name: Final Build & Structure Fix
+        shell: pwsh
+        run: |
+          npx cap sync @capacitor-community/electron
+          cd electron
+          npm install --legacy-peer-deps
+          
+          # Compilation TS
+          npx tsc --skipLibCheck --noEmitOnError false
+          
+          # Correction du package.json
+          $pkg = Get-Content "package.json" -Raw | ConvertFrom-Json
+          $pkg.name = "mucodec-espace-entreprise"
+          $pkg.main = "build/index.js"
+          $pkg.scripts."electron:make" = "electron-builder build --win --publish never"
+          $repoUrl = "https://github.com/${{ github.repository }}"
+          if (-not $pkg.repository) { $pkg | Add-Member -Type NoteProperty -Name "repository" -Value $repoUrl }
+          $pkg | ConvertTo-Json -Depth 10 | Set-Content "package.json"
+
+          # Déplacement build/src -> build/
+          if (Test-Path "build/src/index.js") {
+            Copy-Item -Path "build/src/*" -Destination "build/" -Recurse -Force
+            Remove-Item -Path "build/src" -Recurse -Force
+          }
+
+          # Suppression icône invalide
+          if (Test-Path "assets/icon.ico") { Remove-Item "assets/icon.ico" -Force }
+
+          # Packaging
+          npm run electron:make
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Windows Setup
+        uses: actions/upload-artifact@v4
+        with:
+          name: MUCODEC-Windows-Installer
+          path: electron/dist/*.exe
