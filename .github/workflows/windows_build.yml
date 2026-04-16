@@ -3,10 +3,8 @@ on:
   push:
     branches: [main, master]
   workflow_dispatch:
-
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
-
 jobs:
   build-windows:
     runs-on: windows-latest
@@ -31,18 +29,6 @@ jobs:
           if (!(Test-Path $mockPath)) { New-Item -ItemType Directory -Path $mockPath -Force }
           '{"name":"@capacitor-fingerprint-auth","version":"1.0.0","main":"index.js"}' | Set-Content "$mockPath/package.json"
           'export const FingerprintAuth = { available: () => Promise.resolve(false), auth: () => Promise.resolve(false) }; export default FingerprintAuth;' | Set-Content "$mockPath/index.js"
-
-      - name: Auto-Patch Source Code Errors
-        shell: pwsh
-        run: |
-          # Correction de l'import mal formé dans AppLayout.tsx
-          $layoutPath = "src/components/layout/AppLayout.tsx"
-          if (Test-Path $layoutPath) {
-            $content = Get-Content $layoutPath
-            $content = $content -replace 'import { AppSidebar } from "./AppSidebar"', 'import AppSidebar from "./AppSidebar"'
-            $content | Set-Content $layoutPath
-            Write-Host "✅ AppLayout.tsx patched."
-          }
 
       - name: Build Web App (Vite)
         run: npm run build
